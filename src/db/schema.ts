@@ -190,7 +190,7 @@ export interface PromptInputRule {
 
 export interface Prompt {
     id: ID;
-    projectId: ID;
+    projectId?: ID;
 
     // General
     name: string;

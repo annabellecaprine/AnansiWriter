@@ -12,6 +12,8 @@ export default function StagingSandbox() {
     const [input, setInput] = useState('')
     const [assemblyCache, setAssemblyCache] = useState<ContextAssembly | null>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [models, setModels] = useState<any[]>([])
+    const [selectedModel, setSelectedModel] = useState<{ id: string, provider: string } | null>(null)
 
     // Load defaults
     const [characterId, setCharacterId] = useState<string>('')
@@ -24,7 +26,49 @@ export default function StagingSandbox() {
             setCharacters(chars)
             if (chars.length > 0) setCharacterId(chars[0].id)
         })
+        db.aiModels.where({ projectId: activeProjectId }).filter(m => !!m.isEnabled).toArray().then(setModels)
     }, [activeProjectId])
+
+    useEffect(() => {
+        if (!characterId) return
+        const fetchPreferences = async () => {
+            const prefs = await db.fieldValues.where({ entryId: characterId }).toArray()
+            const modelPref = prefs.find(f => f.fieldKey === 'STAGING_MODEL_ID')
+            const provPref = prefs.find(f => f.fieldKey === 'STAGING_PROVIDER')
+
+            if (modelPref && provPref) {
+                setSelectedModel({ id: modelPref.value, provider: provPref.value })
+            } else {
+                setSelectedModel(null) // Fallback when submitting
+            }
+        }
+        fetchPreferences()
+    }, [characterId])
+
+    const setCharacterModel = async (modelId: string) => {
+        const model = models.find(m => m.modelId === modelId)
+        if (!model) return
+        setSelectedModel({ id: model.modelId, provider: model.provider })
+
+        const prefs = await db.fieldValues.where({ entryId: characterId }).toArray()
+        let mPref = prefs.find(f => f.fieldKey === 'STAGING_MODEL_ID')
+        let pPref = prefs.find(f => f.fieldKey === 'STAGING_PROVIDER')
+
+        const now = Date.now()
+        if (mPref) {
+            await db.fieldValues.update(mPref.id, { value: model.modelId, updatedAt: now })
+        } else {
+            const { v4: uuidv4 } = await import('uuid')
+            await db.fieldValues.add({ id: uuidv4(), projectId: activeProjectId!, entryId: characterId, fieldKey: 'STAGING_MODEL_ID', value: model.modelId, state: 'Canon', validFrom: null, validUntil: null, provenance: [], createdAt: now, updatedAt: now })
+        }
+
+        if (pPref) {
+            await db.fieldValues.update(pPref.id, { value: model.provider, updatedAt: now })
+        } else {
+            const { v4: uuidv4 } = await import('uuid')
+            await db.fieldValues.add({ id: uuidv4(), projectId: activeProjectId!, entryId: characterId, fieldKey: 'STAGING_PROVIDER', value: model.provider, state: 'Canon', validFrom: null, validUntil: null, provenance: [], createdAt: now, updatedAt: now })
+        }
+    }
 
     const constructContext = async () => {
         if (!activeProjectId || !characterId) return
@@ -59,12 +103,15 @@ export default function StagingSandbox() {
             // Aggregate history natively
             const priorHistoryContext = newMsgs.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
 
+            const runModel = selectedModel?.id || (models.length > 0 ? models[0].modelId : 'anthropic/claude-3-haiku')
+            const runProvider = selectedModel?.provider || (models.length > 0 ? models[0].provider : 'openrouter')
+
             const responseText = await AIService.generate(
                 activeProjectId,
                 assemblyCache.assembledSystemInstruction,
                 `${priorHistoryContext}\n\nCHARACTER:`,
-                'anthropic/claude-3-haiku',
-                'openrouter',
+                runModel,
+                runProvider,
                 characterId
             )
 
@@ -89,9 +136,15 @@ export default function StagingSandbox() {
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Crosshair size={18} /> Non-Canon Sandbox</h3>
                     <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Experiments here do not affect your manuscript organically.</p>
 
-                    <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Target Character / Role</label>
-                    <select value={characterId} onChange={e => setCharacterId(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px' }}>
+                    <label htmlFor="target-character" style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Target Character / Role</label>
+                    <select id="target-character" aria-label="Select Target Character" value={characterId} onChange={e => setCharacterId(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px' }}>
                         {characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+
+                    <label htmlFor="target-model" style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>Identity Execution Core (Model)</label>
+                    <select id="target-model" aria-label="Select Target Model" value={selectedModel?.id || ''} onChange={e => setCharacterModel(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px' }}>
+                        {models.map(m => <option key={m.id} value={m.modelId}>{m.name} ({m.provider})</option>)}
+                        {!models.length && <option value="">No Active Models...</option>}
                     </select>
 
                     <button className="btn" style={{ marginTop: '1rem', background: 'var(--color-surface-hover)' }}><Save size={16} /> Save Session</button>
@@ -122,13 +175,15 @@ export default function StagingSandbox() {
 
                 <div style={{ padding: '1rem', borderTop: '1px solid var(--color-border)', display: 'flex', gap: '1rem', background: 'var(--color-bg)' }}>
                     <textarea
+                        id="chat-input"
+                        aria-label="Chat Input Box"
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         placeholder="Interject prompt..."
                         style={{ flex: 1, padding: '0.8rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', resize: 'none', height: '60px' }}
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitChat(); } }}
                     />
-                    <button className="btn" onClick={submitChat} disabled={isLoading}><MessageSquare size={18} /></button>
+                    <button className="btn" aria-label="Submit Message" onClick={submitChat} disabled={isLoading}><MessageSquare size={18} /></button>
                 </div>
 
             </div>

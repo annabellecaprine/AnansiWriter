@@ -4,6 +4,7 @@ export interface AIRequestPayload {
     userPrompt: string;
     temperature?: number;
     maxTokens?: number;
+    baseUrl?: string;
     [key: string]: any;
 }
 

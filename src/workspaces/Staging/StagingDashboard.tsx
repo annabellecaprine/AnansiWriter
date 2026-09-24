@@ -21,6 +21,7 @@ export default function AIWorkshop() {
     // Configurations
     const [openRouterKey, setOpenRouterKey] = useState('')
     const [chutesKey, setChutesKey] = useState('')
+    const [localEndpoint, setLocalEndpoint] = useState('http://localhost:1234/v1')
     const [model, setModel] = useState('anthropic/claude-3-haiku')
     const [provider, setProvider] = useState('openrouter')
 
@@ -50,29 +51,43 @@ export default function AIWorkshop() {
         // Load isolated credentials independently 
         AIService.getApiKey('openrouter').then(key => { if (key) setOpenRouterKey(key) })
         AIService.getApiKey('chutes').then(key => { if (key) setChutesKey(key) })
+        db.appSettings.get('baseUrl_openai-compatible').then(url => { if (url) setLocalEndpoint(url.value) })
 
     }, [activeProjectId])
 
     const handleSaveKey = () => {
         if (provider === 'openrouter') {
             AIService.setApiKey('openrouter', openRouterKey)
-        } else {
+        } else if (provider === 'chutes') {
             AIService.setApiKey('chutes', chutesKey)
+        } else if (provider === 'openai-compatible') {
+            // Save the base URL in our app settings for local deployment mapping
+            db.appSettings.put({
+                key: `baseUrl_openai-compatible`,
+                value: localEndpoint,
+                description: 'Base URL for local OpenAI-compatible inference (e.g. LM Studio, Ollama).',
+                updatedAt: Date.now()
+            })
         }
-        alert(`API Key secured gracefully in System local settings for ${provider}.`)
+        alert(`Configuration secured gracefully in System local settings for ${provider}.`)
     }
 
     const handleDeleteKey = async () => {
-        if (confirm(`Remove the local API Key for ${provider}?`)) {
-            await db.appSettings.delete(`api_key_${provider}`)
-            if (provider === 'openrouter') setOpenRouterKey('')
-            else setChutesKey('')
+        if (confirm(`Remove the local API configuration for ${provider}?`)) {
+            if (provider === 'openai-compatible') {
+                await db.appSettings.delete(`baseUrl_openai-compatible`)
+                setLocalEndpoint('http://localhost:1234/v1')
+            } else {
+                await db.appSettings.delete(`api_key_${provider}`)
+                if (provider === 'openrouter') setOpenRouterKey('')
+                else setChutesKey('')
+            }
         }
     }
 
     const handleTestKey = async () => {
-        const currentKey = provider === 'openrouter' ? openRouterKey : chutesKey
-        if (!currentKey) return alert("Must supply a key to run network validation.")
+        const currentKey = provider === 'openrouter' ? openRouterKey : provider === 'chutes' ? chutesKey : 'not_required'
+        if (!currentKey && provider !== 'openai-compatible') return alert("Must supply a key to run network validation.")
         try {
             // Dispatch a tiny minimal payload
             await AIService.generate(activeProjectId!, "Connection validation", "Ack", model, provider, "test-connection")
@@ -146,25 +161,52 @@ export default function AIWorkshop() {
                 <div style={{ width: '350px', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
                     <div className="spike-section">
                         <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Ghost size={18} /> Engine Config</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>AI Provider Interface</label>
-                            <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px' }}>
-                                <option value="openrouter">OpenRouter (Canonical)</option>
-                                <option value="chutes">Chutes.ai (Decentralized)</option>
-                            </select>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', color: 'var(--color-text-muted)' }}>Provider Target</label>
+                                <select className="input" value={provider} onChange={e => {
+                                    setProvider(e.target.value)
+                                    if (e.target.value === 'chutes') setModel('Qwen/Qwen2.5-7B-Instruct')
+                                    if (e.target.value === 'openrouter') setModel('anthropic/claude-3-haiku')
+                                    if (e.target.value === 'openai-compatible') setModel('local-model-id')
+                                }} style={{ width: '100%', padding: '0.6rem' }}>
+                                    <option value="openrouter">OpenRouter (Federated Commercial)</option>
+                                    <option value="chutes">Chutes.ai (Decentralized Open Source)</option>
+                                    <option value="openai-compatible">Local Endpoint (LM Studio/Ollama)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', color: 'var(--color-text-muted)' }}>Model Instruction Boundary (Model ID)</label>
+                                <input
+                                    className="input"
+                                    value={model}
+                                    onChange={e => setModel(e.target.value)}
+                                    placeholder="eg: minstral-8x7b"
+                                    style={{ width: '100%', padding: '0.6rem', fontFamily: 'monospace' }}
+                                />
+                            </div>
+                        </div>
 
-                            <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>Credential Pipeline</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                                {provider === 'openai-compatible' ? 'Local Base URL' : 'Credential Pipeline'}
+                            </label>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input type="password" value={provider === 'openrouter' ? openRouterKey : chutesKey} onChange={e => {
-                                    if (provider === 'openrouter') setOpenRouterKey(e.target.value)
-                                    else setChutesKey(e.target.value)
-                                }} style={{ flex: 1 }} placeholder="sk-..." />
+                                <input
+                                    type={provider === 'openai-compatible' ? 'text' : 'password'}
+                                    value={provider === 'openrouter' ? openRouterKey : provider === 'chutes' ? chutesKey : localEndpoint}
+                                    onChange={e => {
+                                        if (provider === 'openrouter') setOpenRouterKey(e.target.value)
+                                        else if (provider === 'chutes') setChutesKey(e.target.value)
+                                        else setLocalEndpoint(e.target.value)
+                                    }}
+                                    style={{ flex: 1, padding: '0.6rem' }}
+                                    placeholder={provider === 'openai-compatible' ? 'http://localhost:1234/v1' : 'sk-...'}
+                                />
                                 <button className="icon-btn" onClick={handleSaveKey} title="Save to local device storage"><Key size={16} /></button>
                                 <button className="icon-btn" style={{ color: 'var(--color-danger)' }} onClick={handleDeleteKey} title="Destroy key locally"><X size={16} /></button>
                             </div>
                             <button className="btn" style={{ fontSize: '0.8rem', padding: '0.4rem', marginTop: '0.2rem' }} onClick={handleTestKey}>Validate Active Connection</button>
-
-                            <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>Model Payload Target</label>
                             <select value={model} onChange={e => setModel(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px' }}>
                                 <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast)</option>
                                 <option value="anthropic/claude-3-opus">Claude 3 Opus (Logical)</option>

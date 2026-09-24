@@ -4,11 +4,16 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import type { Project } from '../../db/schema'
 import { Plus, Trash2, Upload } from 'lucide-react'
 import ActiveProjectDashboard from './ActiveProjectDashboard'
+import ExportModal from '../../components/shared/ExportModal'
+import PasswordImportModal from '../../components/shared/PasswordImportModal'
 
 export default function ProjectDashboard() {
     const [projects, setProjects] = useState<Project[]>([])
     const { activeProjectId, setActiveProject } = useWorkspaceStore()
     const [newName, setNewName] = useState('New Project')
+    const [exportModalTarget, setExportModalTarget] = useState<{ id: string, name: string } | null>(null)
+    const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+    const [importErrorPass, setImportErrorPass] = useState(false)
 
     const loadProjects = async () => {
         const list = await ProjectService.listActiveProjects()
@@ -31,16 +36,29 @@ export default function ProjectDashboard() {
                     <input
                         type="file"
                         id="import-project"
-                        accept=".storyproject,.zip"
+                        accept=".storyproject,.zip,.docx"
                         style={{ display: 'none' }}
                         onChange={async (e) => {
                             const file = e.target.files?.[0]
                             if (!file) return
+
+                            if (file.name.endsWith('.docx')) {
+                                e.target.value = ''
+                                alert('DOCX files should be imported directly from an open project via Active Project Dashboard > Quick Actions.')
+                                return
+                            }
+
                             try {
                                 const { ImportService } = await import('../../services/ImportService')
                                 await ImportService.validateAndImportProject(file)
                                 loadProjects()
                             } catch (err: any) {
+                                if (err.message === 'ENCRYPTED_ARCHIVE') {
+                                    setPendingImportFile(file)
+                                    setImportErrorPass(false)
+                                    e.target.value = ''
+                                    return
+                                }
                                 if (err.message === 'CollisionDetected') {
                                     if (window.confirm('Project already exists. Import as a copy?')) {
                                         const { ImportService } = await import('../../services/ImportService')
@@ -51,7 +69,7 @@ export default function ProjectDashboard() {
                                     alert(`Import failed: ${err.message}`)
                                 }
                             }
-                            e.target.value = '' // reset
+                            e.target.value = ''
                         }}
                     />
                     <button
@@ -115,18 +133,8 @@ export default function ProjectDashboard() {
                                 </button>
                                 <button
                                     className="icon-btn"
-                                    onClick={async () => {
-                                        const { ExportService } = await import('../../services/ExportService')
-                                        const blob = await ExportService.exportProject(p.id)
-                                        const url = URL.createObjectURL(blob)
-                                        const a = document.createElement('a')
-                                        a.href = url
-                                        a.download = `${p.name.replace(/\s+/g, '_')}.storyproject`
-                                        a.click()
-                                        URL.revokeObjectURL(url)
-                                        loadProjects()
-                                    }}
-                                    title="Export .storyproject"
+                                    onClick={() => setExportModalTarget({ id: p.id, name: p.name })}
+                                    title="Export Project/Manuscript"
                                 >
                                     Export
                                 </button>
@@ -146,6 +154,47 @@ export default function ProjectDashboard() {
                     </div>
                 ))}
             </div>
+
+            {exportModalTarget && (
+                <ExportModal
+                    projectId={exportModalTarget.id}
+                    projectName={exportModalTarget.name}
+                    onClose={() => setExportModalTarget(null)}
+                />
+            )}
+
+            {pendingImportFile && (
+                <PasswordImportModal
+                    incorrect={importErrorPass}
+                    onClose={() => {
+                        setPendingImportFile(null)
+                        setImportErrorPass(false)
+                    }}
+                    onSubmit={async (pw) => {
+                        try {
+                            setImportErrorPass(false)
+                            const { ImportService } = await import('../../services/ImportService')
+                            await ImportService.validateAndImportProject(pendingImportFile, { password: pw })
+                            loadProjects()
+                            setPendingImportFile(null)
+                        } catch (err: any) {
+                            if (err.message === 'INCORRECT_PASSWORD') {
+                                setImportErrorPass(true)
+                            } else if (err.message === 'CollisionDetected') {
+                                setPendingImportFile(null)
+                                if (window.confirm('A project with this internal ID already exists. Import as a copy?')) {
+                                    const { ImportService: IS } = await import('../../services/ImportService')
+                                    await IS.validateAndImportProject(pendingImportFile, { importAsCopy: true, password: pw })
+                                    loadProjects()
+                                }
+                            } else {
+                                alert(`Import failed: ${err.message}`)
+                                setPendingImportFile(null)
+                            }
+                        }
+                    }}
+                />
+            )}
         </div>
     )
 }

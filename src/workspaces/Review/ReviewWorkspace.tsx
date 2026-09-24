@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { FileText, Users, FileLineChart } from 'lucide-react'
+import { FileText, Users, FileLineChart, AlertTriangle } from 'lucide-react'
 import BibleHeatmap from './BibleHeatmap'
 import RelationshipGraph from './RelationshipGraph'
 import NarrativeTimeline from './NarrativeTimeline'
@@ -27,6 +27,9 @@ export default function ReviewWorkspace() {
     const [viewLevel, setViewLevel] = useState<'Book' | 'Act' | 'Chapter' | 'Scene'>('Scene')
     const [characterDistribution, setCharacterDistribution] = useState<any[]>([])
     const [totalWords, setTotalWords] = useState(0)
+    const [dialogueDistribution, setDialogueDistribution] = useState<any[]>([])
+    const [dialogueTotal, setDialogueTotal] = useState(0)
+    const [contradictions, setContradictions] = useState<any[]>([])
 
     useEffect(() => {
         if (!activeProjectId) return
@@ -40,10 +43,14 @@ export default function ReviewWorkspace() {
             const sceneCache: Record<string, number> = {}
             let total = 0
 
+            const sceneDataRaw: any[] = []
+
             const sceneData = scenes.sort((a, b) => a.sortOrder - b.sortOrder).map(s => {
-                const words = countWords(extractTextFromJson(s.content))
+                const textDump = extractTextFromJson(s.content)
+                const words = countWords(textDump)
                 sceneCache[s.id] = words
                 total += words
+                sceneDataRaw.push({ scene: s, text: textDump })
                 return { name: s.name, words }
             })
 
@@ -88,9 +95,126 @@ export default function ReviewWorkspace() {
             const pieData = Object.keys(charCounts).map(name => ({
                 name,
                 value: charCounts[name]
-            })).sort((a, b) => b.value - a.value).slice(0, 10) // Top 10 characters
+            })).sort((a, b) => b.value - a.value).slice(0, 10)
 
             setCharacterDistribution(pieData)
+
+            // Dialogue Extraction (Heuristic vs Explicit)
+            const dialogueCounts: Record<string, number> = {}
+            let dTotal = 0
+
+            sceneDataRaw.forEach((scenePack) => {
+                const { scene, text } = scenePack
+                const sceneOccurrences = occurrences.filter(o => o.sceneId === scene.id && !o.isDismissed)
+
+                // Regex for standard double quotes
+                const quoteRegex = /"([^"]+)"/g
+                let match
+
+                while ((match = quoteRegex.exec(text)) !== null) {
+                    const quoteText = match[1]
+                    const quoteWords = countWords(quoteText)
+                    const quoteStart = match.index
+
+                    dTotal += quoteWords
+
+                    // Explicit Ownership (Intersection: an occurrence is perfectly inside the quote?)
+                    // Usually occurrences track entities, not the dialogue block itself.
+                    // Heuristic: Who is the closest character mentioned BEFORE this quote?
+                    let closestDist = Infinity
+                    let closestEntityId: string | null = null
+
+                    sceneOccurrences.forEach(o => {
+                        // Position in flat text might diverge slightly from TipTap AST pos, 
+                        // but normally proximity resolves unambiguously.
+                        // Assuming startIndex is roughly comparable.
+                        // We dynamically search the string preceding the quote for the occurrence alias.
+                        const aliasIndex = text.lastIndexOf(o.keywordOrAlias, quoteStart)
+                        if (aliasIndex !== -1 && aliasIndex < quoteStart) {
+                            const dist = quoteStart - aliasIndex
+                            if (dist < closestDist) {
+                                closestDist = dist
+                                closestEntityId = o.entryId
+                            }
+                        }
+                    })
+
+                    // Fallback to searching the string immediately preceding if node indices drift
+                    let speakerName = "Unknown Speaker"
+                    if (closestEntityId) {
+                        const entry = charEntries.find(e => e.id === closestEntityId)
+                        if (entry && entry.type === 'Character') {
+                            speakerName = entry.name
+                        }
+                    } else {
+                        // Fallback string matching backward
+                        const precedingText = text.substring(Math.max(0, quoteStart - 100), quoteStart)
+                        for (const ce of charEntries) {
+                            if (ce.type === 'Character' && precedingText.includes(ce.name)) {
+                                speakerName = ce.name
+                                break
+                            }
+                        }
+                    }
+
+                    dialogueCounts[speakerName] = (dialogueCounts[speakerName] || 0) + quoteWords
+                }
+            })
+
+            const dialPie = Object.keys(dialogueCounts).map(name => ({
+                name,
+                value: dialogueCounts[name]
+            })).sort((a, b) => b.value - a.value).slice(0, 10)
+
+            setDialogueTotal(dTotal)
+            setDialogueDistribution(dialPie)
+
+            // Contradiction Identification Pipeline
+            const relationships = await db.relationships.where({ projectId: activeProjectId }).toArray()
+            const warnings: any[] = []
+
+            relationships.forEach(rel => {
+                if (!rel.validFrom && !rel.validUntil) return // Eternal fact, cannot contradict timeline strictly
+
+                // Find scenes where BOTH source and target appear
+                const sourceOccurrences = occurrences.filter(o => o.entryId === rel.sourceId && !o.isDismissed)
+                const targetOccurrences = rel.isBidirectional
+                    ? occurrences.filter(o => o.entryId === rel.targetId && !o.isDismissed)
+                    : sourceOccurrences // Fake if not bidirectional, but really relationship co-presence usually implies both
+
+                // Fast intersection of scene IDs where both exist 
+                const coOccurringSceneIds = sourceOccurrences.map(o => o.sceneId).filter(sId => targetOccurrences.some(to => to.sceneId === sId))
+                const uniqueCoScenes = Array.from(new Set(coOccurringSceneIds))
+
+                uniqueCoScenes.forEach(sId => {
+                    const scene = scenes.find(s => s.id === sId)
+                    if (!scene) return
+
+                    const sceneChronology = scene.narrativePosition?.sequence ?? scene.sortOrder
+                    const sourceChar = charEntries.find(e => e.id === rel.sourceId)
+                    const targetChar = charEntries.find(e => e.id === rel.targetId)
+
+                    if (rel.validFrom && (rel.validFrom.sequence ?? 0) > sceneChronology) {
+                        warnings.push({
+                            sceneName: scene.name,
+                            message: `"${sourceChar?.name}" and "${targetChar?.name}" interact, but their relationship (${rel.type}) doesn't begin until a later sequence.`,
+                            type: 'Premature Interaction'
+                        })
+                    }
+
+                    if (rel.validUntil && (rel.validUntil.sequence ?? Infinity) < sceneChronology) {
+                        warnings.push({
+                            sceneName: scene.name,
+                            message: `"${sourceChar?.name}" and "${targetChar?.name}" interact, but their relationship (${rel.type}) expired previously.`,
+                            type: 'Expired Interaction'
+                        })
+                    }
+                })
+            })
+
+            // Filter redundancies
+            const uniqueWarnings = Array.from(new Set(warnings.map(w => JSON.stringify(w)))).map(s => JSON.parse(s))
+            setContradictions(uniqueWarnings)
         }
 
         compileStats()
@@ -176,6 +300,65 @@ export default function ReviewWorkspace() {
                     </div>
                 </div>
 
+                {/* Dialogue Share */}
+                <div className="spike-section">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Users size={18} /> Dialogue Share (Top 10)</h3>
+                    <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', textAlign: 'right' }}>
+                        <strong style={{ fontSize: '1.2rem', color: 'var(--color-accent)' }}>{dialogueTotal.toLocaleString()}</strong>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>Spoken Words</div>
+                    </div>
+                    <div style={{ height: '300px' }}>
+                        {dialogueDistribution.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={dialogueDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={100}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {dialogueDistribution.map((_, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <div style={{ color: 'var(--color-text-muted)' }}>No dialogue ("...") detected or attributed.</div>}
+                    </div>
+
+                    {/* Legend */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem', fontSize: '0.8rem' }}>
+                        {dialogueDistribution.map((entry, idx) => (
+                            <div key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: COLORS[(idx + 3) % COLORS.length] }}></div>
+                                {entry.name} ({entry.value.toLocaleString()} words)
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+            </div>
+
+            {/* Contradiction Surfacing */}
+            <div className="spike-section" style={{ marginTop: '2rem', border: '1px solid var(--color-warning)', background: 'rgba(255, 160, 0, 0.05)' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--color-warning)' }}><AlertTriangle size={18} /> Continuity Warnings</h3>
+
+                {contradictions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                        {contradictions.map((warn, idx) => (
+                            <div key={idx} style={{ background: 'var(--color-surface)', padding: '1rem', borderRadius: '4px', borderLeft: '4px solid var(--color-warning)' }}>
+                                <strong style={{ display: 'block', marginBottom: '0.3rem', color: 'var(--color-text)' }}>{warn.sceneName}</strong>
+                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{warn.message} <span style={{ padding: '0.1rem 0.4rem', background: 'rgba(255,160,0,0.1)', color: 'var(--color-warning)', fontSize: '0.7rem', borderRadius: '4px', marginLeft: '0.5rem' }}>{warn.type}</span></div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ color: 'var(--color-text-muted)', padding: '1rem', background: 'var(--color-surface)', borderRadius: '4px' }}>No temporal anomalies detected. Entity occurrences currently align with mapped Narrative Positions and Chronological Bounds.</div>
+                )}
             </div>
 
             {/* Heatmap Grid Array */}

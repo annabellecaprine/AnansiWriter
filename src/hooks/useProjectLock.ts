@@ -15,40 +15,63 @@ export function useProjectLock(projectId: string | undefined): boolean | null {
             return
         }
 
+        // Web Locks API support check
+        if (typeof navigator === 'undefined' || !navigator.locks) {
+            setIsReadOnly(false)
+            return
+        }
+
         let isMounted = true
-        const controller = new AbortController()
+        let currentController: AbortController | null = null
 
-        // Request the lock with ifAvailable to instantly fail if another tab holds it
-        navigator.locks.request(
-            `anansi-project-${projectId}`,
-            { mode: 'exclusive', ifAvailable: true, signal: controller.signal },
-            async (lock) => {
-                if (!isMounted) return
+        const tryAcquireLock = async (isRetry = false) => {
+            if (!isMounted) return
 
-                if (!lock) {
-                    // Lock was not granted because another instance holds it
-                    setIsReadOnly(true)
-                    return
-                }
+            const controller = new AbortController()
+            currentController = controller
 
-                // Lock granted cleanly
-                setIsReadOnly(false)
+            try {
+                await navigator.locks.request(
+                    `anansi-project-${projectId}`,
+                    { mode: 'exclusive', ifAvailable: true, signal: controller.signal },
+                    async (lock) => {
+                        if (!isMounted) return
 
-                // Hold the lock indefinitely until this hook unmounts
-                return new Promise<void>((resolve) => {
-                    controller.signal.addEventListener('abort', () => resolve(), { once: true })
-                })
+                        if (!lock) {
+                            if (!isRetry) {
+                                // Wait 150ms to allow previous unmount lock release to process (React Strict Mode / HMR)
+                                setTimeout(() => {
+                                    if (isMounted) tryAcquireLock(true)
+                                }, 150)
+                            } else {
+                                setIsReadOnly(true)
+                            }
+                            return
+                        }
+
+                        // Lock granted cleanly
+                        setIsReadOnly(false)
+
+                        // Hold the lock indefinitely until this hook unmounts or aborts
+                        return new Promise<void>((resolve) => {
+                            controller.signal.addEventListener('abort', () => resolve(), { once: true })
+                        })
+                    }
+                )
+            } catch (err: any) {
+                if (err.name === 'AbortError') return
+                console.warn('Project lock warning:', err)
+                if (isMounted) setIsReadOnly(false)
             }
-        ).catch(err => {
-            if (err.name === 'AbortError') return
-            console.error('Failed to acquire project lock:', err)
-            // Fallback to read-only for safety on weird browser errors
-            if (isMounted) setIsReadOnly(true)
-        })
+        }
+
+        tryAcquireLock()
 
         return () => {
             isMounted = false
-            controller.abort() // Releases the lock
+            if (currentController) {
+                currentController.abort()
+            }
         }
     }, [projectId])
 

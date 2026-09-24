@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { db } from '../db/database'
+import { PromptService } from './PromptService'
 
 export interface ExportFilter {
     books?: string[]; // IDs of books to include (will include child chapters & scenes)
@@ -73,7 +74,7 @@ export class ExportService {
         // 4. Auxiliary Assets and Meta
         let assetLinks = (filter?.includeAssets !== false) ? await db.assetLinks.where({ projectId }).toArray() : []
         let assetsData = (filter?.includeAssets !== false) ? await db.assets.where({ projectId }).toArray() : []
-        let prompts = (filter?.includePrompts !== false) ? await db.prompts.where({ projectId }).toArray() : []
+        let prompts = (filter?.includePrompts !== false) ? await PromptService.getPrompts(projectId) : []
         let stagingSessions = (filter?.includePrompts !== false) ? await db.stagingSessions.where({ projectId }).toArray() : []
 
         const aiModels = await db.aiModels.where({ projectId }).toArray()

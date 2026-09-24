@@ -14,6 +14,8 @@ export default function RelationshipGraph() {
     const [filterTag, setFilterTag] = useState('')
     const [filterRel, setFilterRel] = useState('')
     const [hideDisconnected, setHideDisconnected] = useState(false)
+    const [focusNodeId, setFocusNodeId] = useState('')
+    const [hopDepth, setHopDepth] = useState<number>(1)
 
     const containerRef = useRef<HTMLDivElement>(null)
 
@@ -33,14 +35,39 @@ export default function RelationshipGraph() {
             if (filterType) filteredEntries = filteredEntries.filter(e => e.type === filterType)
             if (filterTag) filteredEntries = filteredEntries.filter(e => e.tags?.some((t: string) => t.toLowerCase().includes(filterTag.toLowerCase())))
 
-            const cleanEdges = relationships.filter(r =>
+            let cleanEdges = relationships.filter(r =>
                 filteredEntries.find(n => n.id === r.sourceId) && filteredEntries.find(n => n.id === r.targetId)
                 && (!filterRel || r.type.toLowerCase().includes(filterRel.toLowerCase()))
             ).map(r => ({
                 source: r.sourceId,
                 target: r.targetId,
-                type: r.type
+                type: r.type,
+                hasTemporalBounds: !!r.validFrom || !!r.validUntil
             }))
+
+            if (focusNodeId) {
+                // BFS to find connected neighborhood
+                const visited = new Set<string>()
+                let currentFrontier = new Set<string>([focusNodeId])
+                visited.add(focusNodeId)
+
+                for (let d = 0; d < hopDepth; d++) {
+                    const nextFrontier = new Set<string>()
+                    cleanEdges.forEach(e => {
+                        if (currentFrontier.has(e.source)) {
+                            nextFrontier.add(e.target)
+                            visited.add(e.target)
+                        } else if (currentFrontier.has(e.target)) {
+                            nextFrontier.add(e.source)
+                            visited.add(e.source)
+                        }
+                    })
+                    currentFrontier = nextFrontier
+                }
+
+                filteredEntries = filteredEntries.filter(e => visited.has(e.id))
+                cleanEdges = cleanEdges.filter(e => visited.has(e.source) && visited.has(e.target))
+            }
 
             if (hideDisconnected) {
                 filteredEntries = filteredEntries.filter(e => cleanEdges.some(edge => edge.source === e.id || edge.target === e.id))
@@ -58,7 +85,7 @@ export default function RelationshipGraph() {
         }
 
         buildGraph()
-    }, [activeProjectId, filterType, filterTag, filterRel, hideDisconnected])
+    }, [activeProjectId, filterType, filterTag, filterRel, hideDisconnected, focusNodeId, hopDepth])
 
     return (
         <div className="spike-section" style={{ marginTop: '2rem' }}>
@@ -73,6 +100,20 @@ export default function RelationshipGraph() {
                 </select>
                 <input type="text" placeholder="Filter by Tag..." value={filterTag} onChange={e => setFilterTag(e.target.value)} style={{ padding: '0.3rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-text)' }} />
                 <input type="text" placeholder="Filter Rel Type..." value={filterRel} onChange={e => setFilterRel(e.target.value)} style={{ padding: '0.3rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-text)' }} />
+
+                <select value={focusNodeId} onChange={e => setFocusNodeId(e.target.value)} style={{ padding: '0.3rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-text)' }}>
+                    <option value="">No Focus (Global)</option>
+                    {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                </select>
+
+                {focusNodeId && (
+                    <select value={hopDepth} onChange={e => setHopDepth(Number(e.target.value))} style={{ padding: '0.3rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px', color: 'var(--color-text)' }}>
+                        <option value={1}>1-Hop Radius</option>
+                        <option value={2}>2-Hop Radius</option>
+                        <option value={3}>3-Hop Radius</option>
+                    </select>
+                )}
+
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input type="checkbox" checked={hideDisconnected} onChange={e => setHideDisconnected(e.target.checked)} />
                     Hide Disconnected
@@ -91,8 +132,9 @@ export default function RelationshipGraph() {
                                 <line
                                     x1={source.x} y1={source.y}
                                     x2={target.x} y2={target.y}
-                                    stroke="var(--color-border)"
+                                    stroke={(e as any).hasTemporalBounds ? "var(--color-warning)" : "var(--color-border)"}
                                     strokeWidth="2"
+                                    strokeDasharray={(e as any).hasTemporalBounds ? "5,5" : "none"}
                                 />
                                 <text
                                     x={(source.x + target.x) / 2}
@@ -109,22 +151,25 @@ export default function RelationshipGraph() {
                 </svg>
 
                 {nodes.map(n => (
-                    <div key={n.id} style={{
-                        position: 'absolute',
-                        left: n.x,
-                        top: n.y,
-                        transform: 'translate(-50%, -50%)',
-                        background: 'var(--color-surface)',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '20px',
-                        border: '2px solid var(--color-primary)',
-                        color: 'var(--color-text)',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-                        cursor: 'pointer',
-                        zIndex: 10
-                    }}>
+                    <div
+                        key={n.id}
+                        onClick={() => setFocusNodeId(n.id === focusNodeId ? '' : n.id)}
+                        style={{
+                            position: 'absolute',
+                            left: n.x,
+                            top: n.y,
+                            transform: 'translate(-50%, -50%)',
+                            background: focusNodeId === n.id ? 'var(--color-primary)' : 'var(--color-surface)',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '20px',
+                            border: `2px solid ${focusNodeId === n.id ? '#fff' : 'var(--color-primary)'}`,
+                            color: focusNodeId === n.id ? '#fff' : 'var(--color-text)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            boxShadow: focusNodeId === n.id ? '0 0 15px var(--color-primary)' : '0 4px 10px rgba(0,0,0,0.3)',
+                            cursor: 'pointer',
+                            zIndex: 10
+                        }}>
                         {n.name}
                     </div>
                 ))}
@@ -135,6 +180,6 @@ export default function RelationshipGraph() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     )
 }

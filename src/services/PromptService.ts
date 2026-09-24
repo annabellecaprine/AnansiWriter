@@ -3,8 +3,9 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Prompt } from '../db/schema'
 
 export class PromptService {
-    static async getPrompts(projectId: string): Promise<Prompt[]> {
-        return await db.prompts.where({ projectId }).toArray()
+    static async getPrompts(projectId?: string): Promise<Prompt[]> {
+        if (!projectId) return await db.prompts.toArray()
+        return await db.prompts.filter(p => !p.projectId || p.projectId === projectId || p.projectId === 'GLOBAL').toArray()
     }
 
     static async createPrompt(

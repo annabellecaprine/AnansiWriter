@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { Activity, Clock, ShieldCheck, Edit3, UserPlus, Calendar, PlusCircle, CheckCircle, FileUp } from 'lucide-react'
+import { Activity, Clock, ShieldCheck, Edit3, UserPlus, Calendar, PlusCircle, CheckCircle, FileUp, GripVertical } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Snapshot, Project } from '../../db/schema'
 import DocxImportModal from '../../components/shared/DocxImportModal'
@@ -28,6 +28,28 @@ export default function ActiveProjectDashboard() {
     const [lastSnapshot, setLastSnapshot] = useState<Snapshot | null>(null)
     const [recentItems, setRecentItems] = useState<{ id: string, name: string, type: string, updatedAt: number }[]>([])
     const [importModalOpen, setImportModalOpen] = useState(false)
+
+    // Layout State
+    const [layout, setLayout] = useState<string[]>(['activity', 'actions', 'todos'])
+    const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
+
+    useEffect(() => {
+        const cached = localStorage.getItem('anansi_dashboard_layout')
+        if (cached) setLayout(JSON.parse(cached))
+    }, [])
+
+    const handleDragStart = (idx: number) => setDraggedIdx(idx)
+    const handleDragEnter = (targetIdx: number) => {
+        if (draggedIdx === null || draggedIdx === targetIdx) return
+        const newLayout = [...layout]
+        const temp = newLayout[draggedIdx]
+        newLayout[draggedIdx] = newLayout[targetIdx]
+        newLayout[targetIdx] = temp
+        setLayout(newLayout)
+        setDraggedIdx(targetIdx)
+        localStorage.setItem('anansi_dashboard_layout', JSON.stringify(newLayout))
+    }
+    const handleDragEnd = () => setDraggedIdx(null)
 
     useEffect(() => {
         if (!activeProjectId) return
@@ -80,52 +102,81 @@ export default function ActiveProjectDashboard() {
                 </div>
             </header>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 300px', gap: '2rem' }}>
-
-                {/* Main Activity Feed */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Clock size={18} /> Recent Activity</h3>
-                    <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
-                        {recentItems.length === 0 ? (
-                            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>No recent activity.</div>
-                        ) : (
-                            recentItems.map((item, idx) => (
-                                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', borderBottom: idx !== recentItems.length - 1 ? '1px solid var(--color-border)' : 'none', background: 'var(--color-surface)', cursor: 'pointer' }} onClick={() => {
-                                    if (item.type === 'Scene') navigate('/writing')
-                                    else navigate('/bible')
-                                }} className="hover-bg">
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <strong style={{ color: 'var(--color-text)' }}>{item.name}</strong>
-                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{item.type}</span>
-                                    </div>
-                                    <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{new Date(item.updatedAt).toLocaleDateString()}</span>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Quick Actions & TODOs */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
-                    <div className="spike-section">
-                        <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><PlusCircle size={18} /> Quick Actions</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <button className="btn" onClick={() => navigate('/writing')} style={{ width: '100%', justifyContent: 'flex-start' }}><Edit3 size={16} /> Continue Writing</button>
-                            <button className="btn" onClick={() => navigate('/bible')} style={{ width: '100%', justifyContent: 'flex-start' }}><UserPlus size={16} /> Add Character</button>
-                            <button className="btn" onClick={() => navigate('/planning')} style={{ width: '100%', justifyContent: 'flex-start' }}><Calendar size={16} /> View Outline</button>
-                            <button className="btn" onClick={() => setImportModalOpen(true)} style={{ width: '100%', justifyContent: 'flex-start' }}><FileUp size={16} /> Sandbox DOCX Import</button>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 300px', gap: '2rem', alignItems: 'start' }}>
+                {layout.map((widgetId, idx) => {
+                    if (widgetId === 'activity') return (
+                        /* Main Activity Feed */
+                        <div
+                            key="activity"
+                            draggable
+                            onDragStart={() => handleDragStart(idx)}
+                            onDragEnter={() => handleDragEnter(idx)}
+                            onDragEnd={handleDragEnd}
+                            style={{ display: 'flex', flexDirection: 'column', gap: '1rem', opacity: draggedIdx === idx ? 0.5 : 1, cursor: 'grab' }}
+                        >
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><GripVertical size={16} color="var(--color-primary)" aria-label="Drag Handle - Recent Activity" role="button" tabIndex={0} /> <Clock size={18} /> Recent Activity</h3>
+                            <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
+                                {recentItems.length === 0 ? (
+                                    <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>No recent activity.</div>
+                                ) : (
+                                    recentItems.map((item, itemIdx) => (
+                                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', borderBottom: itemIdx !== recentItems.length - 1 ? '1px solid var(--color-border)' : 'none', background: 'var(--color-surface)' }} onClick={() => {
+                                            if (item.type === 'Scene') navigate('/writing')
+                                            else navigate('/bible')
+                                        }} className="hover-bg">
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <strong style={{ color: 'var(--color-text)' }}>{item.name}</strong>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{item.type}</span>
+                                            </div>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{new Date(item.updatedAt).toLocaleDateString()}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )
 
-                    <div className="spike-section">
-                        <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={18} /> Project TODOs</h3>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', margin: 0 }}>
-                            (TODO Tracker currently synchronizing with Phase 4 Planning state. Keep building!)
-                        </p>
-                    </div>
+                    if (widgetId === 'actions') return (
+                        /* Quick Actions */
+                        <div
+                            key="actions"
+                            className="spike-section"
+                            draggable
+                            onDragStart={() => handleDragStart(idx)}
+                            onDragEnter={() => handleDragEnter(idx)}
+                            onDragEnd={handleDragEnd}
+                            style={{ opacity: draggedIdx === idx ? 0.5 : 1, cursor: 'grab' }}
+                        >
+                            <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><GripVertical size={16} color="var(--color-primary)" aria-label="Drag Handle - Quick Actions" role="button" tabIndex={0} /> <PlusCircle size={18} /> Quick Actions</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <button className="btn" onClick={() => navigate('/writing')} style={{ width: '100%', justifyContent: 'flex-start' }}><Edit3 size={16} /> Continue Writing</button>
+                                <button className="btn" onClick={() => navigate('/bible')} style={{ width: '100%', justifyContent: 'flex-start' }}><UserPlus size={16} /> Add Character</button>
+                                <button className="btn" onClick={() => navigate('/planning')} style={{ width: '100%', justifyContent: 'flex-start' }}><Calendar size={16} /> View Outline</button>
+                                <button className="btn" onClick={() => setImportModalOpen(true)} style={{ width: '100%', justifyContent: 'flex-start' }}><FileUp size={16} /> Sandbox DOCX Import</button>
+                            </div>
+                        </div>
+                    )
 
-                </div>
+                    if (widgetId === 'todos') return (
+                        /* Project TODOs */
+                        <div
+                            key="todos"
+                            className="spike-section"
+                            draggable
+                            onDragStart={() => handleDragStart(idx)}
+                            onDragEnter={() => handleDragEnter(idx)}
+                            onDragEnd={handleDragEnd}
+                            style={{ opacity: draggedIdx === idx ? 0.5 : 1, cursor: 'grab' }}
+                        >
+                            <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><GripVertical size={16} color="var(--color-primary)" aria-label="Drag Handle - Project TODOs" role="button" tabIndex={0} /> <CheckCircle size={18} /> Project TODOs</h3>
+                            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                                (TODO Tracker currently synchronizing with Phase 4 Planning state. Keep building!)
+                            </p>
+                        </div>
+                    )
+
+                    return null
+                })}
             </div>
             {importModalOpen && <DocxImportModal projectId={activeProjectId} onClose={() => setImportModalOpen(false)} />}
         </div>

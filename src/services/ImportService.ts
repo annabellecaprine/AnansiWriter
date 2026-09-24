@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { db } from '../db/database'
+import { CryptoService } from './CryptoService'
 
 export class ImportService {
     /**
@@ -7,8 +8,17 @@ export class ImportService {
      * Ensures structure validity and optionally performs full UUID deep-remapping.
      * Throws errors if validation fails (e.g., collision without remap instructions).
      */
-    static async validateAndImportProject(file: File, options?: { importAsCopy?: boolean }): Promise<string> {
-        const zip = await JSZip.loadAsync(file)
+    static async validateAndImportProject(file: File | Blob, options?: { importAsCopy?: boolean, password?: string }): Promise<string> {
+        let processFile = file
+
+        if (await CryptoService.isEncrypted(file)) {
+            if (!options?.password) {
+                throw new Error('ENCRYPTED_ARCHIVE')
+            }
+            processFile = await CryptoService.decryptBlob(file, options.password)
+        }
+
+        const zip = await JSZip.loadAsync(processFile)
 
         // 1. Validate Core Geometry
         const manifestFile = zip.file('manifest.json')

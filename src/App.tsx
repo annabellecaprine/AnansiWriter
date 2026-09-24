@@ -12,6 +12,9 @@ import PromptTestingSandbox from './workspaces/Staging/PromptTestingSandbox'
 import InferenceTelemetry from './workspaces/Staging/InferenceTelemetry'
 import ModelDirectory from './workspaces/Staging/ModelDirectory'
 import ReviewWorkspace from './workspaces/Review/ReviewWorkspace'
+import AssetsWorkspace from './workspaces/Assets/AssetsWorkspace'
+import SettingsWorkspace from './workspaces/Settings/SettingsWorkspace'
+import ProvenanceExplorer from './pages/ProvenanceExplorer'
 import './index.css'
 
 export default function App() {
@@ -24,10 +27,11 @@ export default function App() {
                 {/* Workspaces */}
                 <Route path="project" element={<ProjectDashboard />} />
 
-                {/* Temporary stubs to test navigation */}
+                {/* Workspaces & Nav Destinations */}
                 <Route path="writing" element={<WritingContainer />} />
                 <Route path="planning" element={<PlanningDashboard />} />
                 <Route path="bible" element={<BibleDashboard />} />
+                <Route path="assets" element={<AssetsWorkspace />} />
                 <Route path="prompts" element={<PromptsDashboard />} />
                 <Route path="staging" element={<StagingSandbox />} />
                 <Route path="sandbox" element={<PromptTestingSandbox />} />
@@ -35,11 +39,14 @@ export default function App() {
                 <Route path="models" element={<ModelDirectory />} />
                 <Route path="metrics" element={<InferenceTelemetry />} />
                 <Route path="review" element={<ReviewWorkspace />} />
-                <Route path="settings" element={<div className="workspace-view"><h1>Settings</h1></div>} />
+                <Route path="settings" element={<SettingsWorkspace />} />
             </Route>
 
             {/* Existing Phase 0 test page */}
             <Route path="/spike" element={<Phase0Spike />} />
+
+            {/* Global Auxiliary Pages */}
+            <Route path="/provenance" element={<ProvenanceExplorer />} />
         </Routes>
     )
 }

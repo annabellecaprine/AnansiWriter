@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { AIRequestPayload, AIResponse } from './ai/ProviderAdapter'
 import { OpenRouterProvider } from './ai/OpenRouterProvider'
 import { ChutesProvider } from './ai/ChutesProvider'
+import { OpenAICompatibleProvider } from './ai/OpenAICompatibleProvider'
 
 export class AIService {
 
@@ -33,21 +34,29 @@ export class AIService {
         let providerAdapter;
         if (providerName === 'chutes') {
             providerAdapter = new ChutesProvider()
+        } else if (providerName === 'openai-compatible') {
+            providerAdapter = new OpenAICompatibleProvider()
         } else {
             providerAdapter = new OpenRouterProvider()
         }
 
         const key = await this.getApiKey(providerName)
-        if (!key) throw new Error(`No API key configured for ${providerName}. Please set one securely in settings.`)
+        // Only require API key if not local endpoint
+        if (!key && providerName !== 'openai-compatible') {
+            throw new Error(`No API key configured for ${providerName}. Please set one securely in settings.`)
+        }
+
+        const customUrlDb = await db.appSettings.get(`baseUrl_${providerName}`)
 
         const payload: AIRequestPayload = {
             modelId: model,
             systemInstruction: systemInstruction,
-            userPrompt: userPrompt
+            userPrompt: userPrompt,
+            baseUrl: customUrlDb?.value
         }
 
         // The adapter ensures no global credentials mutate backward natively
-        const response: AIResponse = await providerAdapter.generate(payload, key)
+        const response: AIResponse = await providerAdapter.generate(payload, key || "")
 
         // Log to history tracking table
         await db.aiRequestHistory.add({
