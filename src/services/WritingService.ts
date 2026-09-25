@@ -1,17 +1,17 @@
 import { db } from '../db/database'
 
-
 export interface HierarchyNode {
     id: string
     type: 'Series' | 'Book' | 'Act' | 'Chapter' | 'Scene'
     name: string
     sortOrder: number
+    wordCount: number
     children?: HierarchyNode[]
 }
 
 export class WritingService {
     /**
-     * Fetches the entire project hierarchy as a deeply nested tree.
+     * Fetches the entire project hierarchy as a deeply nested tree with aggregate word count rollups.
      */
     static async getProjectHierarchy(projectId: string): Promise<HierarchyNode[]> {
         const [series, books, acts, chapters, scenes] = await Promise.all([
@@ -22,51 +22,144 @@ export class WritingService {
             db.scenes.where({ projectId }).sortBy('sortOrder')
         ])
 
-        // Build the tree bottom-up
+        // Build bottom-up
         const chapterNodes: Record<string, HierarchyNode> = {}
         for (const c of chapters) {
-            chapterNodes[c.id] = { id: c.id, type: 'Chapter', name: c.name, sortOrder: c.sortOrder, children: [] }
+            chapterNodes[c.id] = { id: c.id, type: 'Chapter', name: c.name, sortOrder: c.sortOrder, wordCount: 0, children: [] }
         }
+
         for (const s of scenes) {
             if (chapterNodes[s.chapterId]) {
-                chapterNodes[s.chapterId].children!.push({ id: s.id, type: 'Scene', name: s.name, sortOrder: s.sortOrder })
+                const words = s.wordCount || 0
+                chapterNodes[s.chapterId].children!.push({
+                    id: s.id,
+                    type: 'Scene',
+                    name: s.name,
+                    sortOrder: s.sortOrder,
+                    wordCount: words
+                })
+                chapterNodes[s.chapterId].wordCount += words
             }
         }
 
         const actNodes: Record<string, HierarchyNode> = {}
         for (const a of acts) {
-            actNodes[a.id] = { id: a.id, type: 'Act', name: a.name, sortOrder: a.sortOrder, children: [] }
+            actNodes[a.id] = { id: a.id, type: 'Act', name: a.name, sortOrder: a.sortOrder, wordCount: 0, children: [] }
         }
 
         const bookNodes: Record<string, HierarchyNode> = {}
         for (const b of books) {
-            const node: HierarchyNode = { id: b.id, type: 'Book', name: b.name, sortOrder: b.sortOrder, children: [] }
+            const node: HierarchyNode = { id: b.id, type: 'Book', name: b.name, sortOrder: b.sortOrder, wordCount: 0, children: [] }
 
             const orphanChapters = chapters.filter(c => c.bookId === b.id && !c.actId).map(c => chapterNodes[c.id])
 
             const bookActs = acts.filter(a => a.bookId === b.id).map(a => {
                 const actNode = actNodes[a.id]
-                actNode.children = chapters.filter(c => c.actId === a.id).map(c => chapterNodes[c.id])
+                actNode.children = chapters.filter(c => c.actId === a.id).map(c => {
+                    const cNode = chapterNodes[c.id]
+                    actNode.wordCount += cNode.wordCount
+                    return cNode
+                })
                 return actNode
             })
 
-            node.children = [...bookActs, ...orphanChapters].sort((x, y) => x.sortOrder - y.sortOrder)
+            const allChildren = [...bookActs, ...orphanChapters].sort((x, y) => x.sortOrder - y.sortOrder)
+            node.children = allChildren
+            node.wordCount = allChildren.reduce((sum, child) => sum + child.wordCount, 0)
             bookNodes[b.id] = node
         }
 
         const tree: HierarchyNode[] = []
         for (const s of series) {
-            const node: HierarchyNode = { id: s.id, type: 'Series', name: s.name, sortOrder: s.sortOrder, children: [] }
+            const node: HierarchyNode = { id: s.id, type: 'Series', name: s.name, sortOrder: s.sortOrder, wordCount: 0, children: [] }
             node.children = books.filter(b => b.seriesId === s.id).map(b => bookNodes[b.id])
+            node.wordCount = node.children.reduce((sum, bNode) => sum + bNode.wordCount, 0)
             tree.push(node)
+        }
+
+        // If no series exists, list standalone books
+        if (tree.length === 0 && books.length > 0) {
+            return Object.values(bookNodes)
         }
 
         return tree
     }
 
     /**
-     * Updates only the sortOrder of a given entity.
+     * Create a new Chapter
      */
+    static async createChapter(projectId: string, bookId: string, name: string, actId?: string): Promise<string> {
+        const existing = await db.chapters.where({ projectId }).toArray()
+        const id = crypto.randomUUID()
+        const now = Date.now()
+        await db.chapters.add({
+            id,
+            projectId,
+            bookId,
+            actId: actId || undefined,
+            name,
+            sortOrder: existing.length + 1,
+            createdAt: now,
+            updatedAt: now
+        })
+        return id
+    }
+
+    /**
+     * Create a new Scene
+     */
+    static async createScene(projectId: string, chapterId: string, name: string): Promise<string> {
+        const existing = await db.scenes.where({ chapterId }).toArray()
+        const chapter = await db.chapters.get(chapterId)
+        const id = crypto.randomUUID()
+        const now = Date.now()
+        await db.scenes.add({
+            id,
+            projectId,
+            bookId: chapter?.bookId || '',
+            chapterId,
+            name,
+            sortOrder: existing.length + 1,
+            status: 'Draft',
+            wordCount: 0,
+            targetWordCount: 1000,
+            notes: [],
+            content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+            createdAt: now,
+            updatedAt: now
+        })
+        return id
+    }
+
+    /**
+     * Delete an entity by type
+     */
+    static async deleteEntity(type: 'Act' | 'Chapter' | 'Scene', id: string): Promise<void> {
+        if (type === 'Scene') {
+            await db.scenes.delete(id)
+            await db.sceneRevisions.where({ sceneId: id }).delete()
+        } else if (type === 'Chapter') {
+            await db.chapters.delete(id)
+            const scenes = await db.scenes.where({ chapterId: id }).toArray()
+            for (const s of scenes) {
+                await db.scenes.delete(s.id)
+                await db.sceneRevisions.where({ sceneId: s.id }).delete()
+            }
+        } else if (type === 'Act') {
+            await db.acts.delete(id)
+        }
+    }
+
+    /**
+     * Rename an entity
+     */
+    static async renameEntity(type: 'Act' | 'Chapter' | 'Scene', id: string, newName: string): Promise<void> {
+        const updatedAt = Date.now()
+        if (type === 'Scene') await db.scenes.update(id, { name: newName, updatedAt })
+        else if (type === 'Chapter') await db.chapters.update(id, { name: newName, updatedAt })
+        else if (type === 'Act') await db.acts.update(id, { name: newName, updatedAt })
+    }
+
     static async updateSortOrder(
         type: 'Series' | 'Book' | 'Act' | 'Chapter' | 'Scene',
         id: string,
@@ -90,7 +183,6 @@ export class WritingService {
     }
 
     static async createSceneRevision(sceneId: string, projectId: string, content: object, wordCount: number): Promise<void> {
-        // v4 imported inside the file or just use crypto
         const id = crypto.randomUUID()
         await db.sceneRevisions.add({
             id,
@@ -102,4 +194,3 @@ export class WritingService {
         })
     }
 }
-

@@ -90,10 +90,13 @@ export interface Scene {
     name: string;
     content: object; // TipTap JSON
     pov?: string;
+    povCharacterId?: string;
     location?: string;
-    status: string; // e.g., 'To Do', 'Drafting', 'Revised'
+    status: string; // e.g., 'Draft', 'Revised', 'Final'
     wordCount: number;
-    notes: string;
+    targetWordCount?: number;
+    summary?: string;
+    notes: string | string[];
     narrativePosition?: NarrativePosition;
     sortOrder: number;
     createdAt: number;

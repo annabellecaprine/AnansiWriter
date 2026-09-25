@@ -16,13 +16,10 @@ export default function WritingContainer() {
     }
 
     return (
-        <div className="writing-workspace" style={{ display: 'flex', height: '100%', width: '100%' }}>
+        <div className="writing-workspace" style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
             <HierarchySidebar />
-
-            <div style={{ flex: 1, padding: '2rem', display: 'flex', justifyContent: 'center', overflowY: 'auto' }}>
-                <div style={{ maxWidth: '800px', width: '100%', background: 'var(--color-surface)', minHeight: '800px', padding: '4rem', borderRadius: 'var(--radius-md)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: '1px solid var(--color-border)' }}>
-                    <SceneEditor />
-                </div>
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+                <SceneEditor />
             </div>
         </div>
     )
