@@ -1,2 +1,0 @@
-import{E as e,d as r}from"./index-BEN4aLZR.js";import{ImportService as c}from"./ImportService-ILBzjvHW.js";class n{static async duplicateProject(t){const a=await e.exportProject(t),o=new File([a],"duplicate-in-memory.storyproject");return await c.validateAndImportProject(o,{importAsCopy:!0})}static async createSnapshot(t,a){const o=await e.exportProject(t);await r.snapshots.add({id:crypto.randomUUID(),projectId:t,name:`Snapshot: ${a}`,reason:a,data:o,createdAt:Date.now()})}}export{n as SafetyService};
-//# sourceMappingURL=SafetyService-YNBVB7yH.js.map
