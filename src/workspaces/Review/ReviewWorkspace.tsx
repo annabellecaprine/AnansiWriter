@@ -13,6 +13,7 @@ function extractTextFromJson(node: any): string {
     if (!node) return ''
     if (typeof node === 'string') return node
     if (node.type === 'text' && node.text) return node.text
+    if (node.type === 'internalLink' && node.attrs?.name) return node.attrs.name
     if (Array.isArray(node)) return node.map(extractTextFromJson).join(' ')
     if (node.content) return extractTextFromJson(node.content)
     return ''
@@ -92,7 +93,7 @@ export default function ReviewWorkspace() {
                 const text = pack.text
                 charEntriesSorted.forEach(ce => {
                     if (ce.type === 'Character') {
-                        const safeT = ce.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        const safeT = ce.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                         const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
                         const matches = text.match(regex)
                         if (matches) {
@@ -159,7 +160,7 @@ export default function ReviewWorkspace() {
 
                         for (const ce of charEntriesSorted) {
                             if (ce.type === 'Character') {
-                                const safeName = ce.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                                const safeName = ce.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                                 const execRegex = new RegExp(`\\b${safeName}\\b`, 'gi')
                                 let m;
                                 let lastFoundIdx = -1
