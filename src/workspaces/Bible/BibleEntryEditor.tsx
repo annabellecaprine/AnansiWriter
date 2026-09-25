@@ -5,10 +5,11 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { Save, ArrowLeft, Image as ImageIcon, BookOpen } from 'lucide-react'
 import RelationshipsPanel from './RelationshipsPanel'
 import ReferencedByPanel from './ReferencedByPanel'
+import { promptInput } from '../../store/dialogStore'
 
 // Dummy route param alternative for now, assuming entryId is passed or stored in zustand
 export default function BibleEntryEditor({ entryId, onBack }: { entryId: string, onBack: () => void }) {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [entry, setEntry] = useState<any>(null)
     const [fields, setFields] = useState<any[]>([])
     const [assets, setAssets] = useState<any[]>([])
@@ -26,20 +27,20 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
     }, [assets])
 
     const loadEntry = () => {
-        if (activeProjectId && entryId) {
-            BibleService.getEntryWithFields(activeProjectId, entryId).then(data => {
+        if (activeNovelId && entryId) {
+            BibleService.getEntryWithFields(activeNovelId, entryId).then(data => {
                 if (data) {
                     setEntry(data)
                     setFields(data.fields)
                 }
             })
-            AssetService.getLinkedAssets(activeProjectId, entryId).then(setAssets)
+            AssetService.getLinkedAssets(activeNovelId, entryId).then(setAssets)
         }
     }
 
     useEffect(() => {
         loadEntry()
-    }, [activeProjectId, entryId])
+    }, [activeNovelId, entryId])
 
     if (!entry) return <div className="workspace-view"><p>Loading entry...</p></div>
 
@@ -81,8 +82,8 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
                                 style={{ display: 'none' }}
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0]
-                                    if (file && activeProjectId) {
-                                        await AssetService.uploadAsset(activeProjectId, file, entryId)
+                                    if (file && activeNovelId) {
+                                        await AssetService.uploadAsset(activeNovelId, file, entryId)
                                         loadEntry()
                                     }
                                 }}
@@ -136,9 +137,13 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
                         className="btn"
                         style={{ marginTop: '1.5rem' }}
                         onClick={async () => {
-                            const name = window.prompt("New custom field name (e.g. 'Secret Motivation'):")
-                            if (name && activeProjectId) {
-                                await BibleService.addFieldValue(activeProjectId, entryId, name, '')
+                            const name = await promptInput({
+                                title: 'Add Custom Field',
+                                message: 'Enter custom field name (e.g., "Secret Motivation"):',
+                                placeholder: 'Field Name'
+                            })
+                            if (name && activeNovelId) {
+                                await BibleService.addFieldValue(activeNovelId, entryId, name, '')
                                 loadEntry()
                             }
                         }}
@@ -149,7 +154,7 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
 
                 {/* Embedded Relationships Component */}
                 <RelationshipsPanel entryId={entryId} />
-                <ReferencedByPanel entryId={entryId} projectId={activeProjectId!} />
+                <ReferencedByPanel entryId={entryId} novelId={activeNovelId!} />
             </div>
         </div>
     )

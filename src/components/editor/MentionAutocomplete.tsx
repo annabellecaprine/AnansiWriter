@@ -3,21 +3,21 @@ import { db } from '../../db/database'
 import { User, MapPin, Tag, Search } from 'lucide-react'
 
 interface MentionAutocompleteProps {
-    projectId: string
+    novelId: string
     query: string
     onSelect: (entry: { id: string, name: string, type: string }) => void
     onClose: () => void
 }
 
-export default function MentionAutocomplete({ projectId, query, onSelect, onClose }: MentionAutocompleteProps) {
+export default function MentionAutocomplete({ novelId, query, onSelect, onClose }: MentionAutocompleteProps) {
     const [entries, setEntries] = useState<any[]>([])
     const [selectedIndex, setSelectedIndex] = useState(0)
 
     useEffect(() => {
-        if (!projectId) return
+        if (!novelId) return
 
         let mounted = true
-        db.bibleEntries.where({ projectId }).toArray().then(allEntries => {
+        db.bibleEntries.where({ novelId }).toArray().then(allEntries => {
             if (!mounted) return
             const filtered = allEntries.filter(e =>
                 e.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -28,7 +28,7 @@ export default function MentionAutocomplete({ projectId, query, onSelect, onClos
         })
 
         return () => { mounted = false }
-    }, [projectId, query])
+    }, [novelId, query])
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {

@@ -4,6 +4,8 @@ import type { AIRequestPayload, AIResponse } from './ai/ProviderAdapter'
 import { OpenRouterProvider } from './ai/OpenRouterProvider'
 import { ChutesProvider } from './ai/ChutesProvider'
 import { OpenAICompatibleProvider } from './ai/OpenAICompatibleProvider'
+import { OpenAIProvider } from './ai/OpenAIProvider'
+import { ProxyConfigService } from './ProxyConfigService'
 
 export class AIService {
 
@@ -22,48 +24,103 @@ export class AIService {
         })
     }
 
+    static getProviderAdapter(providerName: string) {
+        if (providerName === 'chutes') {
+            return new ChutesProvider()
+        } else if (providerName === 'openai-compatible' || providerName === 'proxy') {
+            return new OpenAICompatibleProvider()
+        } else if (providerName === 'openai') {
+            return new OpenAIProvider()
+        } else {
+            return new OpenRouterProvider()
+        }
+    }
+
+    static async testConnection(providerName: string, apiKey: string, baseUrl?: string, modelId?: string): Promise<{ success: boolean; message: string }> {
+        try {
+            const providerAdapter = this.getProviderAdapter(providerName)
+            let testModel = modelId || 'gpt-4o-mini'
+            if (!modelId && providerName === 'chutes') testModel = 'deepseek-ai/DeepSeek-V3'
+            if (!modelId && providerName === 'openrouter') testModel = 'meta-llama/llama-3.1-8b-instruct:free'
+
+            const payload: AIRequestPayload = {
+                modelId: testModel,
+                systemInstruction: 'You are a test ping. Respond with exactly the word "OK" and nothing else.',
+                userPrompt: 'Respond with "OK".',
+                maxTokens: 50,
+                baseUrl
+            }
+
+            const response = await providerAdapter.generate(payload, apiKey)
+            if (response.content || response.id) {
+                return { success: true, message: `Connected! ${response.content ? `Response: ${response.content.trim()}` : '(Model returned empty body)'}` }
+            } else {
+                return { success: false, message: 'Provider returned a structural malformation.' }
+            }
+        } catch (err: any) {
+            return { success: false, message: err.message || 'Connection failed.' }
+        }
+    }
+
     static async generate(
-        projectId: string,
+        novelId: string,
         systemInstruction: string,
         userPrompt: string,
         model: string = 'anthropic/claude-3-haiku',
-        providerName: string = 'openrouter',
-        sourceId?: string
+        providerName: string = 'proxy',
+        sourceId?: string,
+        executedPromptSnapshot?: any,
+        inputVariablesResolved?: Record<string, any>,
+        messages?: { role: 'system' | 'user' | 'assistant', content: string }[]
     ): Promise<string> {
 
-        let providerAdapter;
-        if (providerName === 'chutes') {
-            providerAdapter = new ChutesProvider()
-        } else if (providerName === 'openai-compatible') {
+        // Check if an active proxy configuration exists in the ProxyConfigService
+        const activeProxy = await ProxyConfigService.getActiveProxyConfig()
+
+        let effectiveModel = model
+        let effectiveApiKey = ''
+        let effectiveBaseUrl = ''
+        let providerAdapter
+
+        if (activeProxy) {
+            effectiveModel = activeProxy.model || model
+            effectiveApiKey = activeProxy.apiKey || (await this.getApiKey('openai') || await this.getApiKey('chutes') || await this.getApiKey('openrouter') || '')
+            effectiveBaseUrl = activeProxy.proxyUrl
             providerAdapter = new OpenAICompatibleProvider()
         } else {
-            providerAdapter = new OpenRouterProvider()
+            providerAdapter = this.getProviderAdapter(providerName)
+            const key = await this.getApiKey(providerName)
+            if (!key && providerName !== 'openai-compatible') {
+                throw new Error(`No API key configured for ${providerName}. Please set one securely in settings.`)
+            }
+            effectiveApiKey = key || ''
+            const customUrlDb = await db.appSettings.get(`baseUrl_${providerName}`)
+            effectiveBaseUrl = customUrlDb?.value || ''
         }
-
-        const key = await this.getApiKey(providerName)
-        // Only require API key if not local endpoint
-        if (!key && providerName !== 'openai-compatible') {
-            throw new Error(`No API key configured for ${providerName}. Please set one securely in settings.`)
-        }
-
-        const customUrlDb = await db.appSettings.get(`baseUrl_${providerName}`)
 
         const payload: AIRequestPayload = {
-            modelId: model,
+            modelId: effectiveModel,
             systemInstruction: systemInstruction,
             userPrompt: userPrompt,
-            baseUrl: customUrlDb?.value
+            baseUrl: effectiveBaseUrl,
+            messages: messages
         }
 
         // The adapter ensures no global credentials mutate backward natively
-        const response: AIResponse = await providerAdapter.generate(payload, key || "")
+        const response: AIResponse = await providerAdapter.generate(payload, effectiveApiKey)
 
         // Log to history tracking table
         await db.aiRequestHistory.add({
             id: uuidv4(),
-            projectId,
-            promptName: 'Staging Invocation',
-            modelId: model,
+            novelId,
+            promptName: executedPromptSnapshot ? executedPromptSnapshot.name : 'Staging Invocation',
+            executedPromptSnapshot,
+            executionMetadata: {
+                temperatureUsed: 0.7, // stub
+                outputTokensUsed: response.totalTokens, // approx
+                inputVariablesResolved: inputVariablesResolved || {}
+            },
+            modelId: effectiveModel,
             tokenCount: response.totalTokens,
             sourceId,
             timestamp: Date.now(),

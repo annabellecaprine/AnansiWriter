@@ -6,18 +6,18 @@ import { v4 as uuidv4 } from 'uuid'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 
 export default function ModelDirectory() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [models, setModels] = useState<AIModel[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        if (!activeProjectId) return
-        db.aiModels.where({ projectId: activeProjectId }).toArray().then(m => {
+        if (!activeNovelId) return
+        db.aiModels.where({ novelId: activeNovelId }).toArray().then(m => {
             if (m.length === 0) {
                 // Initialize default arrays
                 const defaults: AIModel[] = [
-                    { id: uuidv4(), projectId: activeProjectId, provider: 'openrouter', modelId: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', maxContextTokens: 200000, defaultTemperature: 0.7, hasVision: true, tags: ['fast', 'anthropic'], isEnabled: true, costPer1kInput: 0.25, costPer1kOutput: 1.25 },
-                    { id: uuidv4(), projectId: activeProjectId, provider: 'openrouter', modelId: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', maxContextTokens: 128000, defaultTemperature: 0.8, hasVision: true, tags: ['fast', 'openai'], isEnabled: true, costPer1kInput: 0.15, costPer1kOutput: 0.60 }
+                    { id: uuidv4(), novelId: activeNovelId, provider: 'openrouter', modelId: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', maxContextTokens: 200000, defaultTemperature: 0.7, hasVision: true, tags: ['fast', 'anthropic'], isEnabled: true, costPer1kInput: 0.25, costPer1kOutput: 1.25 },
+                    { id: uuidv4(), novelId: activeNovelId, provider: 'openrouter', modelId: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', maxContextTokens: 128000, defaultTemperature: 0.8, hasVision: true, tags: ['fast', 'openai'], isEnabled: true, costPer1kInput: 0.15, costPer1kOutput: 0.60 }
                 ]
                 db.aiModels.bulkAdd(defaults).then(() => setModels(defaults))
             } else {
@@ -25,7 +25,7 @@ export default function ModelDirectory() {
             }
             setLoading(false)
         })
-    }, [activeProjectId])
+    }, [activeNovelId])
 
     const handleToggle = async (id: string, state: boolean) => {
         await db.aiModels.update(id, { isEnabled: state })

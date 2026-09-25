@@ -5,7 +5,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { FileText, Users, FileLineChart, AlertTriangle } from 'lucide-react'
 import BibleHeatmap from './BibleHeatmap'
 import RelationshipGraph from './RelationshipGraph'
-import NarrativeTimeline from './NarrativeTimeline'
+import TokenHabitChart from './TokenHabitChart'
+import DailyHabitHeatmap from './DailyHabitHeatmap'
 
 // Dummy extract logic for now
 function extractTextFromJson(node: any): string {
@@ -22,7 +23,7 @@ function countWords(text: string): number {
 }
 
 export default function ReviewWorkspace() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [hierarchyCounts, setHierarchyCounts] = useState<{ books: any[], acts: any[], chapters: any[], scenes: any[] }>({ books: [], acts: [], chapters: [], scenes: [] })
     const [viewLevel, setViewLevel] = useState<'Book' | 'Act' | 'Chapter' | 'Scene'>('Scene')
     const [characterDistribution, setCharacterDistribution] = useState<any[]>([])
@@ -32,13 +33,14 @@ export default function ReviewWorkspace() {
     const [contradictions, setContradictions] = useState<any[]>([])
 
     useEffect(() => {
-        if (!activeProjectId) return
+        if (!activeNovelId) return
 
         const compileStats = async () => {
-            const scenes = await db.scenes.where({ projectId: activeProjectId }).toArray()
-            const chapters = await db.chapters.where({ projectId: activeProjectId }).toArray()
-            const acts = await db.acts.where({ projectId: activeProjectId }).toArray()
-            const books = await db.books.where({ projectId: activeProjectId }).toArray()
+            const scenes = await db.scenes.where({ novelId: activeNovelId }).toArray()
+            const chapters = await db.chapters.where({ novelId: activeNovelId }).toArray()
+            const acts = await db.acts.where({ novelId: activeNovelId }).toArray()
+            const bookReq = await db.novels.get(activeNovelId)
+            const books = bookReq ? [bookReq] : []
 
             const sceneCache: Record<string, number> = {}
             let total = 0
@@ -67,29 +69,37 @@ export default function ReviewWorkspace() {
                 return { name: a.name, words }
             })
 
-            const bookData = books.sort((a, b) => a.sortOrder - b.sortOrder).map(b => {
-                const bActs = acts.filter(act => act.bookId === b.id)
+            const bookData = books.sort((a, b) => (a.seriesIndex || 0) - (b.seriesIndex || 0)).map(b => {
+                const bActs = acts.filter(act => act.novelId === b.id)
                 const bChapters = chapters.filter(c => bActs.find(act => act.id === c.actId))
                 const bScenes = scenes.filter(s => bChapters.find(ch => ch.id === s.chapterId))
                 const words = bScenes.reduce((acc, s) => acc + (sceneCache[s.id] || 0), 0)
-                return { name: b.name, words }
+                return { name: b.title || 'Untitled', words }
             })
 
             setTotalWords(total)
             setHierarchyCounts({ books: bookData, acts: actData, chapters: chapterData, scenes: sceneData })
 
-            // Character Mentions (Naively mapping occurrences)
-            const occurrences = await db.occurrences.where({ projectId: activeProjectId }).toArray()
-            const charEntries = await db.bibleEntries.where({ projectId: activeProjectId }).toArray()
+            // Character Mentions (Heuristics + InternalLinks mapping directly on the raw text)
+            const occurrences = await db.occurrences.where({ novelId: activeNovelId }).toArray()
+            const charEntries = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
+            const charEntriesSorted = [...charEntries].sort((a, b) => b.name.length - a.name.length)
 
             const charCounts: Record<string, number> = {}
-            occurrences.forEach(o => {
-                if (!o.isConfirmed && !o.isDismissed) return // Only count confirmed/auto
-                if (o.isDismissed) return
-                const entry = charEntries.find(e => e.id === o.entryId)
-                if (entry && entry.type === 'Character') {
-                    charCounts[entry.name] = (charCounts[entry.name] || 0) + 1
-                }
+
+            // Native Heuristic Detection (Instead of relying on AI occurrences payload)
+            sceneDataRaw.forEach(pack => {
+                const text = pack.text
+                charEntriesSorted.forEach(ce => {
+                    if (ce.type === 'Character') {
+                        const safeT = ce.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
+                        const matches = text.match(regex)
+                        if (matches) {
+                            charCounts[ce.name] = (charCounts[ce.name] || 0) + matches.length
+                        }
+                    }
+                })
             })
 
             const pieData = Object.keys(charCounts).map(name => ({
@@ -107,9 +117,11 @@ export default function ReviewWorkspace() {
                 const { scene, text } = scenePack
                 const sceneOccurrences = occurrences.filter(o => o.sceneId === scene.id && !o.isDismissed)
 
-                // Regex for standard double quotes
-                const quoteRegex = /"([^"]+)"/g
+                // Regex for standard double quotes AND smart quotes
+                const quoteRegex = /["\u201C]([^"\u201D]+)["\u201D]/g
                 let match
+
+                const lowerText = text.toLowerCase()
 
                 while ((match = quoteRegex.exec(text)) !== null) {
                     const quoteText = match[1]
@@ -119,17 +131,13 @@ export default function ReviewWorkspace() {
                     dTotal += quoteWords
 
                     // Explicit Ownership (Intersection: an occurrence is perfectly inside the quote?)
-                    // Usually occurrences track entities, not the dialogue block itself.
-                    // Heuristic: Who is the closest character mentioned BEFORE this quote?
                     let closestDist = Infinity
                     let closestEntityId: string | null = null
 
+                    // 1. Check legacy manual occurrences
                     sceneOccurrences.forEach(o => {
-                        // Position in flat text might diverge slightly from TipTap AST pos, 
-                        // but normally proximity resolves unambiguously.
-                        // Assuming startIndex is roughly comparable.
-                        // We dynamically search the string preceding the quote for the occurrence alias.
-                        const aliasIndex = text.lastIndexOf(o.keywordOrAlias, quoteStart)
+                        const lowerAlias = o.keywordOrAlias.toLowerCase()
+                        const aliasIndex = lowerText.lastIndexOf(lowerAlias, quoteStart)
                         if (aliasIndex !== -1 && aliasIndex < quoteStart) {
                             const dist = quoteStart - aliasIndex
                             if (dist < closestDist) {
@@ -139,22 +147,36 @@ export default function ReviewWorkspace() {
                         }
                     })
 
-                    // Fallback to searching the string immediately preceding if node indices drift
+                    // Fallback to closest heuristic string match immediately preceding
                     let speakerName = "Unknown Speaker"
                     if (closestEntityId) {
                         const entry = charEntries.find(e => e.id === closestEntityId)
-                        if (entry && entry.type === 'Character') {
-                            speakerName = entry.name
-                        }
+                        if (entry && entry.type === 'Character') speakerName = entry.name
                     } else {
-                        // Fallback string matching backward
-                        const precedingText = text.substring(Math.max(0, quoteStart - 100), quoteStart)
-                        for (const ce of charEntries) {
-                            if (ce.type === 'Character' && precedingText.includes(ce.name)) {
-                                speakerName = ce.name
-                                break
+                        const precedingText = text.substring(Math.max(0, quoteStart - 400), quoteStart)
+                        let closestDistInner = Infinity
+                        let closestMatchName = null
+
+                        for (const ce of charEntriesSorted) {
+                            if (ce.type === 'Character') {
+                                const safeName = ce.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                                const execRegex = new RegExp(`\\b${safeName}\\b`, 'gi')
+                                let m;
+                                let lastFoundIdx = -1
+                                while ((m = execRegex.exec(precedingText)) !== null) {
+                                    lastFoundIdx = m.index
+                                }
+                                if (lastFoundIdx !== -1) {
+                                    const dist = precedingText.length - lastFoundIdx
+                                    if (dist < closestDistInner) {
+                                        closestDistInner = dist
+                                        closestMatchName = ce.name
+                                    }
+                                }
                             }
                         }
+
+                        if (closestMatchName) speakerName = closestMatchName
                     }
 
                     dialogueCounts[speakerName] = (dialogueCounts[speakerName] || 0) + quoteWords
@@ -170,7 +192,7 @@ export default function ReviewWorkspace() {
             setDialogueDistribution(dialPie)
 
             // Contradiction Identification Pipeline
-            const relationships = await db.relationships.where({ projectId: activeProjectId }).toArray()
+            const relationships = await db.relationships.where({ novelId: activeNovelId }).toArray()
             const warnings: any[] = []
 
             relationships.forEach(rel => {
@@ -218,11 +240,11 @@ export default function ReviewWorkspace() {
         }
 
         compileStats()
-    }, [activeProjectId])
+    }, [activeNovelId])
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A288FE', '#FF66B2', '#4BC0C0', '#36A2EB', '#FF6384', '#9966FF']
 
-    if (!activeProjectId) {
+    if (!activeNovelId) {
         return <div className="workspace-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Open a project to review analytics.</div>
     }
 
@@ -364,10 +386,12 @@ export default function ReviewWorkspace() {
             {/* Heatmap Grid Array */}
             <BibleHeatmap />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div style={{ display: 'block', marginBottom: '2rem' }}>
                 <RelationshipGraph />
-                <NarrativeTimeline />
             </div>
+
+            <TokenHabitChart />
+            <DailyHabitHeatmap />
         </div>
     )
 }

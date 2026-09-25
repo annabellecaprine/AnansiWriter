@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../db/database'
-import type { Book } from '../../db/schema'
+import type { Novel } from '../../db/schema'
 import { ExportService } from '../../services/ExportService'
 import { EpubService } from '../../services/EpubService'
 import { PdfService } from '../../services/PdfService'
 import { CryptoService } from '../../services/CryptoService'
 import { XCircle, Download, Lock } from 'lucide-react'
 
-export default function ExportModal({ projectId, projectName, onClose }: { projectId: string, projectName: string, onClose: () => void }) {
-    const [books, setBooks] = useState<Book[]>([])
+export default function ExportModal({ novelId, projectName, onClose }: { novelId: string, projectName: string, onClose: () => void }) {
+    const [books, setBooks] = useState<Novel[]>([])
     const [format, setFormat] = useState<'storyproject' | 'epub' | 'pdf'>('storyproject')
     const [targetBookId, setTargetBookId] = useState<string>('all')
     const [password, setPassword] = useState('')
@@ -18,18 +18,18 @@ export default function ExportModal({ projectId, projectName, onClose }: { proje
 
     useEffect(() => {
         const load = async () => {
-            const b = await db.books.where({ projectId }).toArray()
+            const b = await db.novels.where({ novelId }).toArray()
             setBooks(b)
         }
         load()
-    }, [projectId])
+    }, [novelId])
 
     const handleExport = async () => {
         setLoading(true)
         setError('')
         try {
             if (format === 'storyproject') {
-                let blob = await ExportService.exportProject(projectId, targetBookId !== 'all' ? { books: [targetBookId] } : undefined)
+                let blob = await ExportService.exportProject(novelId, targetBookId !== 'all' ? { books: [targetBookId] } : undefined)
                 if (isEncrypted && password) {
                     blob = await CryptoService.encryptBlob(blob, password)
                 }
@@ -46,11 +46,11 @@ export default function ExportModal({ projectId, projectName, onClose }: { proje
                 const b = books.find(x => x.id === targetBookId)
                 if (!b) throw new Error('Target book missing.')
 
-                const blob = await EpubService.generateEpub(b.id, projectId, {
-                    title: b.name,
-                    author: 'Anansi Writer' // Could be requested via formal config UI
+                const blob = await EpubService.generateEpub(b.id, novelId, {
+                    title: b.title,
+                    author: b.author || 'Anansi Writer' // Could be requested via formal config UI
                 })
-                triggerDownload(blob, `${b.name.replace(/\\s+/g, '_')}.epub`)
+                triggerDownload(blob, `${b.title.replace(/\\s+/g, '_')}.epub`)
             } else if (format === 'pdf') {
                 if (targetBookId === 'all') {
                     setError('Please select a specific Book to export as PDF.')
@@ -61,7 +61,7 @@ export default function ExportModal({ projectId, projectName, onClose }: { proje
                 if (!b) throw new Error('Target book missing.')
 
                 // Triggers native browser print-to-pdf pipeline
-                await PdfService.generatePdf(b.id, projectId, { profile: 'manuscript' })
+                await PdfService.generatePdf(b.id, novelId, { profile: 'manuscript' })
                 onClose()
             }
         } catch (err: any) {
@@ -102,9 +102,9 @@ export default function ExportModal({ projectId, projectName, onClose }: { proje
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Target</label>
                         <select className="input" value={targetBookId} onChange={e => setTargetBookId(e.target.value)} style={{ width: '100%', padding: '0.6rem' }}>
-                            {format === 'storyproject' && <option value="all">Entire Project (All Books & Data)</option>}
+                            {format === 'storyproject' && <option value="all">Entire Project (All Novels & Data)</option>}
                             {books.map(b => (
-                                <option key={b.id} value={b.id}>Book: {b.name}</option>
+                                <option key={b.id} value={b.id}>Novel: {b.title}</option>
                             ))}
                         </select>
                     </div>

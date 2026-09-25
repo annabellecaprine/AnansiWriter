@@ -1,7 +1,10 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useWorkspaceStore } from './store/workspaceStore'
 import AppShell from './components/shared/AppShell'
 import Phase0Spike from './pages/Phase0Spike'
-import ProjectDashboard from './workspaces/Project/ProjectDashboard'
+import LibraryWorkspace from './workspaces/Library/LibraryWorkspace'
+import SeriesDashboard from './workspaces/Library/SeriesDashboard'
 import BibleDashboard from './workspaces/Bible/BibleDashboard'
 import PlanningDashboard from './workspaces/Planning/PlanningDashboard'
 import WritingContainer from './workspaces/Writing/WritingContainer'
@@ -17,29 +20,55 @@ import SettingsWorkspace from './workspaces/Settings/SettingsWorkspace'
 import ProvenanceExplorer from './pages/ProvenanceExplorer'
 import './index.css'
 
+function NovelRouteGuard() {
+    const { novelId, seriesId } = useParams()
+    const { activeNovelId, setActiveNovel, activeSeriesId, setActiveSeries } = useWorkspaceStore()
+
+    useEffect(() => {
+        if (novelId && novelId !== activeNovelId) {
+            setActiveNovel(novelId)
+        }
+        if (seriesId && seriesId !== activeSeriesId) {
+            setActiveSeries(seriesId)
+        }
+    }, [novelId, activeNovelId, setActiveNovel, seriesId, activeSeriesId, setActiveSeries])
+
+    return <Outlet />
+}
 export default function App() {
     return (
         <Routes>
             <Route path="/" element={<AppShell />}>
-                {/* Default route triggers redirect to /project */}
-                <Route index element={<Navigate to="/project" replace />} />
+                {/* Default route triggers redirect to /library */}
+                <Route index element={<Navigate to="/library" replace />} />
 
-                {/* Workspaces */}
-                <Route path="project" element={<ProjectDashboard />} />
+                {/* Library Workspaces */}
+                <Route path="library" element={
+                    <LibraryWorkspace
+                        onOpenSeries={(id) => window.location.hash = `#/series/${id}`}
+                        onOpenNovel={(id) => window.location.hash = `#/novel/${id}`}
+                    />
+                } />
+                <Route path="series/:seriesId" element={<SeriesDashboard />} />
+                <Route path="settings" element={<SettingsWorkspace />} />
 
-                {/* Workspaces & Nav Destinations */}
-                <Route path="writing" element={<WritingContainer />} />
-                <Route path="planning" element={<PlanningDashboard />} />
-                <Route path="bible" element={<BibleDashboard />} />
-                <Route path="assets" element={<AssetsWorkspace />} />
-                <Route path="prompts" element={<PromptsDashboard />} />
-                <Route path="staging" element={<StagingSandbox />} />
+                {/* Global Auxiliary Paths kept for backward compat or generic access */}
                 <Route path="sandbox" element={<PromptTestingSandbox />} />
                 <Route path="workshop" element={<AIWorkshop />} />
                 <Route path="models" element={<ModelDirectory />} />
                 <Route path="metrics" element={<InferenceTelemetry />} />
-                <Route path="review" element={<ReviewWorkspace />} />
-                <Route path="settings" element={<SettingsWorkspace />} />
+
+                {/* Novel-Centric Workspaces */}
+                <Route path="novel/:novelId" element={<NovelRouteGuard />}>
+                    <Route index element={<Navigate to="plan" replace />} />
+                    <Route path="write" element={<WritingContainer />} />
+                    <Route path="plan" element={<PlanningDashboard />} />
+                    <Route path="codex" element={<BibleDashboard />} />
+                    <Route path="assets" element={<AssetsWorkspace />} />
+                    <Route path="prompts" element={<PromptsDashboard />} />
+                    <Route path="staging" element={<StagingSandbox />} />
+                    <Route path="review" element={<ReviewWorkspace />} />
+                </Route>
             </Route>
 
             {/* Existing Phase 0 test page */}

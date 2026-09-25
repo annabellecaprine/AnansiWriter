@@ -4,14 +4,14 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { Calendar, Hash } from 'lucide-react'
 
 export default function NarrativeTimeline() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [scenes, setScenes] = useState<any[]>([])
 
     useEffect(() => {
-        if (!activeProjectId) return
+        if (!activeNovelId) return
 
         const buildTimeline = async () => {
-            const s = await db.scenes.where({ projectId: activeProjectId }).toArray()
+            const s = await db.scenes.where({ novelId: activeNovelId }).toArray()
             s.sort((a, b) => {
                 const aSeq = a.narrativePosition?.sequence ?? a.sortOrder
                 const bSeq = b.narrativePosition?.sequence ?? b.sortOrder
@@ -20,7 +20,7 @@ export default function NarrativeTimeline() {
             setScenes(s)
         }
         buildTimeline()
-    }, [activeProjectId])
+    }, [activeNovelId])
 
     if (scenes.length === 0) return null
 

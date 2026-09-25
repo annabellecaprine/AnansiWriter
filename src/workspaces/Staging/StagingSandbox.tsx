@@ -5,9 +5,10 @@ import { MessageSquare, Save, RotateCcw, Crosshair, ArrowRightCircle } from 'luc
 import { AIService } from '../../services/AIService'
 import ContextPreview from '../../components/ContextPreview'
 import type { ContextAssembly } from '../../services/ai/ContextEngine'
+import { confirmAlert } from '../../store/dialogStore'
 
 export default function StagingSandbox() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [messages, setMessages] = useState<{ role: string, content: string }[]>([])
     const [input, setInput] = useState('')
     const [assemblyCache, setAssemblyCache] = useState<ContextAssembly | null>(null)
@@ -20,14 +21,14 @@ export default function StagingSandbox() {
     const [characters, setCharacters] = useState<any[]>([])
 
     useEffect(() => {
-        if (!activeProjectId) return
-        db.bibleEntries.where({ projectId: activeProjectId }).toArray().then(entries => {
+        if (!activeNovelId) return
+        db.bibleEntries.where({ novelId: activeNovelId }).toArray().then(entries => {
             const chars = entries.filter(e => e.type === 'Character')
             setCharacters(chars)
             if (chars.length > 0) setCharacterId(chars[0].id)
         })
-        db.aiModels.where({ projectId: activeProjectId }).filter(m => !!m.isEnabled).toArray().then(setModels)
-    }, [activeProjectId])
+        db.aiModels.where({ novelId: activeNovelId }).filter(m => !!m.isEnabled).toArray().then(setModels)
+    }, [activeNovelId])
 
     useEffect(() => {
         if (!characterId) return
@@ -59,19 +60,19 @@ export default function StagingSandbox() {
             await db.fieldValues.update(mPref.id, { value: model.modelId, updatedAt: now })
         } else {
             const { v4: uuidv4 } = await import('uuid')
-            await db.fieldValues.add({ id: uuidv4(), projectId: activeProjectId!, entryId: characterId, fieldKey: 'STAGING_MODEL_ID', value: model.modelId, state: 'Canon', validFrom: null, validUntil: null, provenance: [], createdAt: now, updatedAt: now })
+            await db.fieldValues.add({ id: uuidv4(), novelId: activeNovelId!, entryId: characterId, fieldKey: 'STAGING_MODEL_ID', value: model.modelId, state: 'Canon', validFrom: null, validUntil: null, provenance: [], createdAt: now, updatedAt: now })
         }
 
         if (pPref) {
             await db.fieldValues.update(pPref.id, { value: model.provider, updatedAt: now })
         } else {
             const { v4: uuidv4 } = await import('uuid')
-            await db.fieldValues.add({ id: uuidv4(), projectId: activeProjectId!, entryId: characterId, fieldKey: 'STAGING_PROVIDER', value: model.provider, state: 'Canon', validFrom: null, validUntil: null, provenance: [], createdAt: now, updatedAt: now })
+            await db.fieldValues.add({ id: uuidv4(), novelId: activeNovelId!, entryId: characterId, fieldKey: 'STAGING_PROVIDER', value: model.provider, state: 'Canon', validFrom: null, validUntil: null, provenance: [], createdAt: now, updatedAt: now })
         }
     }
 
     const constructContext = async () => {
-        if (!activeProjectId || !characterId) return
+        if (!activeNovelId || !characterId) return
         try {
             // Mock standard Context Engine extraction for an "Interview Mode" staging
             const char = await db.bibleEntries.get(characterId)
@@ -92,7 +93,7 @@ export default function StagingSandbox() {
     useEffect(() => { constructContext() }, [characterId])
 
     const submitChat = async () => {
-        if (!input.trim() || !activeProjectId || !assemblyCache) return
+        if (!input.trim() || !activeNovelId || !assemblyCache) return
 
         const newMsgs = [...messages, { role: 'user', content: input }]
         setMessages(newMsgs)
@@ -107,7 +108,7 @@ export default function StagingSandbox() {
             const runProvider = selectedModel?.provider || (models.length > 0 ? models[0].provider : 'openrouter')
 
             const responseText = await AIService.generate(
-                activeProjectId,
+                activeNovelId,
                 assemblyCache.assembledSystemInstruction,
                 `${priorHistoryContext}\n\nCHARACTER:`,
                 runModel,
@@ -117,14 +118,21 @@ export default function StagingSandbox() {
 
             setMessages([...newMsgs, { role: 'Character', content: responseText }])
         } catch (e: any) {
-            alert(`Staging fault: ${e.message}`)
+            await confirmAlert({
+                title: 'Staging Fault',
+                message: `Staging fault: ${e.message}`,
+                isDestructive: true
+            })
         } finally {
             setIsLoading(false)
         }
     }
 
-    const promoteToCanon = () => {
-        alert("Discovery captured! Staging nodes are non-canon. Implementing cross-bridge export to Bible soon.")
+    const promoteToCanon = async () => {
+        await confirmAlert({
+            title: 'Insight Promotion',
+            message: 'Discovery captured! Staging nodes are non-canon. Cross-bridge export to Bible available soon.'
+        })
     }
 
     return (

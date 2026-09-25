@@ -6,11 +6,11 @@ import { useState, useEffect } from 'react'
  * Returns `isReadOnly: false` if this tab successfully acquired the lock.
  * Returns `isReadOnly: null` while the lock state is being determined.
  */
-export function useProjectLock(projectId: string | undefined): boolean | null {
+export function useProjectLock(novelId: string | undefined): boolean | null {
     const [isReadOnly, setIsReadOnly] = useState<boolean | null>(null)
 
     useEffect(() => {
-        if (!projectId) {
+        if (!novelId) {
             setIsReadOnly(null)
             return
         }
@@ -32,7 +32,7 @@ export function useProjectLock(projectId: string | undefined): boolean | null {
 
             try {
                 await navigator.locks.request(
-                    `anansi-project-${projectId}`,
+                    `anansi-project-${novelId}`,
                     { mode: 'exclusive', ifAvailable: true },
                     async (lock) => {
                         if (!isMounted) return
@@ -73,7 +73,7 @@ export function useProjectLock(projectId: string | undefined): boolean | null {
                 currentController.abort()
             }
         }
-    }, [projectId])
+    }, [novelId])
 
     return isReadOnly
 }

@@ -53,7 +53,7 @@ export class ImportService {
 
         // 3. Collision Detection
         const originalProjectId = dbJson.project.id
-        const existingBase = await db.projects.get(originalProjectId)
+        const existingBase = await db.series.get(originalProjectId)
 
         if (existingBase && !options?.importAsCopy) {
             throw new Error('CollisionDetected')
@@ -82,9 +82,9 @@ export class ImportService {
                     for (const key of referenceKeys) {
                         if (record[key] && idMap.has(record[key])) {
                             record[key] = idMap.get(record[key])
-                        } else if (key === 'projectId') {
+                        } else if (key === 'novelId') {
                             // Failsafe bind to project root
-                            record.projectId = incomingProjectId
+                            record.novelId = incomingProjectId
                         }
                     }
                 }
@@ -93,19 +93,19 @@ export class ImportService {
         }
 
         // We process synchronously from top-level down to ensure ID lookups are populated for parent relationships
-        const series = processRecords(dbJson.series, ['projectId'])
-        const books = processRecords(dbJson.books, ['projectId', 'seriesId'])
-        const acts = processRecords(dbJson.acts, ['projectId', 'bookId'])
-        const chapters = processRecords(dbJson.chapters, ['projectId', 'bookId', 'actId'])
-        const scenes = processRecords(dbJson.scenes, ['projectId', 'chapterId'])
-        const sceneRevisions = processRecords(dbJson.sceneRevisions, ['projectId', 'sceneId'])
+        const series = processRecords(dbJson.series, ['novelId'])
+        const books = processRecords(dbJson.books, ['novelId', 'seriesId'])
+        const acts = processRecords(dbJson.acts, ['novelId', 'seriesId'])
+        const chapters = processRecords(dbJson.chapters, ['novelId', 'seriesId', 'actId'])
+        const scenes = processRecords(dbJson.scenes, ['novelId', 'chapterId'])
+        const sceneRevisions = processRecords(dbJson.sceneRevisions, ['novelId', 'sceneId'])
 
-        const bibleEntries = processRecords(dbJson.bibleEntries, ['projectId'])
-        const fieldValues = processRecords(dbJson.fieldValues, ['projectId', 'entryId'])
-        const relationships = processRecords(dbJson.relationships, ['projectId', 'sourceId', 'targetId'])
+        const bibleEntries = processRecords(dbJson.bibleEntries, ['novelId'])
+        const fieldValues = processRecords(dbJson.fieldValues, ['novelId', 'entryId'])
+        const relationships = processRecords(dbJson.relationships, ['novelId', 'sourceId', 'targetId'])
 
         // For assets, we will rebuild the blob structure
-        const processedAssetsMeta = processRecords(dbJson.assets, ['projectId'])
+        const processedAssetsMeta = processRecords(dbJson.assets, ['novelId'])
         const assetsToInsert: any[] = []
 
         if (assetsFolder && processedAssetsMeta.length > 0) {
@@ -123,19 +123,19 @@ export class ImportService {
             }
         }
 
-        const assetLinks = processRecords(dbJson.assetLinks, ['projectId', 'assetId', 'targetId'])
-        const prompts = processRecords(dbJson.prompts, ['projectId'])
-        const aiModels = processRecords(dbJson.aiModels, ['projectId'])
-        const stagingSessions = processRecords(dbJson.stagingSessions, ['projectId'])
-        const aiRequestHistory = processRecords(dbJson.aiRequestHistory, ['projectId', 'sessionId'])
-        const occurrences = processRecords(dbJson.occurrences, ['projectId', 'sceneId', 'targetId'])
-        const snapshots = processRecords(dbJson.snapshots, ['projectId'])
+        const assetLinks = processRecords(dbJson.assetLinks, ['novelId', 'assetId', 'targetId'])
+        const prompts = processRecords(dbJson.prompts, ['novelId'])
+        const aiModels = processRecords(dbJson.aiModels, ['novelId'])
+        const stagingSessions = processRecords(dbJson.stagingSessions, ['novelId'])
+        const aiRequestHistory = processRecords(dbJson.aiRequestHistory, ['novelId', 'sessionId'])
+        const occurrences = processRecords(dbJson.occurrences, ['novelId', 'sceneId', 'targetId'])
+        const snapshots = processRecords(dbJson.snapshots, ['novelId'])
 
         // 5. Transactional Commit
         await db.transaction('rw', db.tables, async () => {
-            await db.projects.add(dbJson.project)
+            await db.series.add(dbJson.project)
             if (series.length) await db.series.bulkAdd(series)
-            if (books.length) await db.books.bulkAdd(books)
+            if (books.length) await db.novels.bulkAdd(books)
             if (acts.length) await db.acts.bulkAdd(acts)
             if (chapters.length) await db.chapters.bulkAdd(chapters)
             if (scenes.length) await db.scenes.bulkAdd(scenes)

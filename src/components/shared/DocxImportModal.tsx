@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { DocxImportService } from '../../services/DocxImportService'
 import { db } from '../../db/database'
 import { FileUp, CheckCircle, XCircle } from 'lucide-react'
+import { confirmAlert } from '../../store/dialogStore'
 
-export default function DocxImportModal({ projectId, onClose }: { projectId: string, onClose: () => void }) {
+export default function DocxImportModal({ novelId, onClose }: { novelId: string, onClose: () => void }) {
     const [file, setFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<any[] | null>(null)
     const [loading, setLoading] = useState(false)
@@ -38,19 +39,21 @@ export default function DocxImportModal({ projectId, onClose }: { projectId: str
             // In a deeper split mode, we'd parse Heading 1s into chapters.
             await db.scenes.add({
                 id: crypto.randomUUID(),
-                projectId,
-                bookId: 'imported',
+                novelId,
                 chapterId: 'imported',
                 name: file?.name.replace('.docx', '') || 'Imported Word Doc',
                 content: { type: 'doc', content: preview },
-                status: 'Drafting',
+                status: 'Draft',
                 wordCount: 0,
                 notes: 'Imported via DOCX sandbox',
                 sortOrder: 9999,
                 createdAt: Date.now(),
                 updatedAt: Date.now()
             })
-            alert('Successfully transacted imported DOCX nodes into the database.')
+            await confirmAlert({
+                title: 'Import Successful',
+                message: 'Successfully transacted imported DOCX nodes into the database.'
+            })
             onClose()
         } catch (err: any) {
             setError(err.message)

@@ -20,14 +20,14 @@ export interface SearchResult {
     snippet: string;
 }
 
-export type SearchProvider = (query: string, projectId: string) => Promise<SearchResult[]>
+export type SearchProvider = (query: string, novelId: string) => Promise<SearchResult[]>
 
 // Registered engines. New workspaces (e.g. Planning, Assets, Prompts) just append their own provider here.
 const SEARCH_PROVIDERS: SearchProvider[] = [
     // 1. Codex Search
     async (q, pid) => {
         const matches: SearchResult[] = []
-        const entries = await db.bibleEntries.where({ projectId: pid }).toArray()
+        const entries = await db.bibleEntries.where({ novelId: pid }).toArray()
         for (const e of entries) {
             if (e.name.toLowerCase().includes(q) || e.aliases?.some((a: string) => a.toLowerCase().includes(q)) || e.tags?.some((t: string) => t.toLowerCase().includes(q))) {
                 matches.push({ id: e.id, type: 'Codex', title: e.name, snippet: e.type })
@@ -38,7 +38,7 @@ const SEARCH_PROVIDERS: SearchProvider[] = [
     // 2. Manuscript Scene Search
     async (q, pid) => {
         const matches: SearchResult[] = []
-        const scenes = await db.scenes.where({ projectId: pid }).toArray()
+        const scenes = await db.scenes.where({ novelId: pid }).toArray()
         for (const s of scenes) {
             if (s.name.toLowerCase().includes(q)) {
                 matches.push({ id: s.id, type: 'Scene', title: s.name, snippet: 'Title match' })
@@ -58,26 +58,26 @@ const SEARCH_PROVIDERS: SearchProvider[] = [
 ]
 
 export function SearchModal({ onClose }: { onClose: () => void }) {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [query, setQuery] = useState('')
     const [results, setResults] = useState<any[]>([])
 
     useEffect(() => {
-        if (!activeProjectId || query.length < 3) {
+        if (!activeNovelId || query.length < 3) {
             setResults([])
             return
         }
 
         const runSearch = async () => {
             const q = query.toLowerCase()
-            const allMatchSets = await Promise.all(SEARCH_PROVIDERS.map(p => p(q, activeProjectId)))
+            const allMatchSets = await Promise.all(SEARCH_PROVIDERS.map(p => p(q, activeNovelId)))
             const merged = allMatchSets.flat()
             setResults(merged)
         }
 
         const debounce = setTimeout(runSearch, 300)
         return () => clearTimeout(debounce)
-    }, [query, activeProjectId])
+    }, [query, activeNovelId])
 
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '10vh' }}>

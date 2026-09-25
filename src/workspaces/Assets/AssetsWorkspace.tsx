@@ -3,9 +3,10 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { db } from '../../db/database'
 import { AssetService } from '../../services/AssetService'
 import { Image as ImageIcon, Upload, Trash2, Link as LinkIcon, Search, Eye, FileText, X } from 'lucide-react'
+import { confirmAction } from '../../store/dialogStore'
 
 export default function AssetsWorkspace() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [assets, setAssets] = useState<any[]>([])
     const [assetLinks, setAssetLinks] = useState<any[]>([])
     const [bibleEntries, setBibleEntries] = useState<any[]>([])
@@ -19,15 +20,15 @@ export default function AssetsWorkspace() {
 
     // Load assets and metadata
     const loadData = async () => {
-        if (!activeProjectId) {
+        if (!activeNovelId) {
             setAssets([])
             return
         }
 
-        const projectAssets = await db.assets.where({ projectId: activeProjectId }).toArray()
-        const projectLinks = await db.assetLinks.where({ projectId: activeProjectId }).toArray()
-        const entries = await db.bibleEntries.where({ projectId: activeProjectId }).toArray()
-        const projectScenes = await db.scenes.where({ projectId: activeProjectId }).toArray()
+        const projectAssets = await db.assets.where({ novelId: activeNovelId }).toArray()
+        const projectLinks = await db.assetLinks.where({ novelId: activeNovelId }).toArray()
+        const entries = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
+        const projectScenes = await db.scenes.where({ novelId: activeNovelId }).toArray()
 
         setAssets(projectAssets.sort((a, b) => b.createdAt - a.createdAt))
         setAssetLinks(projectLinks)
@@ -37,7 +38,7 @@ export default function AssetsWorkspace() {
 
     useEffect(() => {
         loadData()
-    }, [activeProjectId])
+    }, [activeNovelId])
 
     // Generate Object URLs for asset previews
     const [objectUrls, setObjectUrls] = useState<Record<string, string>>({})
@@ -57,12 +58,12 @@ export default function AssetsWorkspace() {
     }, [assets])
 
     const handleFileUpload = async (files: FileList | File[]) => {
-        if (!activeProjectId || files.length === 0) return
+        if (!activeNovelId || files.length === 0) return
         setIsUploading(true)
 
         try {
             for (let i = 0; i < files.length; i++) {
-                await AssetService.uploadAsset(activeProjectId, files[i])
+                await AssetService.uploadAsset(activeNovelId, files[i])
             }
             await loadData()
         } catch (err) {
@@ -73,7 +74,13 @@ export default function AssetsWorkspace() {
     }
 
     const handleDeleteAsset = async (assetId: string) => {
-        if (!confirm('Are you sure you want to delete this asset?')) return
+        const confirmed = await confirmAction({
+            title: 'Delete Asset',
+            message: 'Are you sure you want to delete this asset? This action cannot be undone.',
+            isDestructive: true,
+            confirmLabel: 'Delete'
+        })
+        if (!confirmed) return
         await db.assets.delete(assetId)
         await db.assetLinks.where({ assetId }).delete()
         if (previewAsset?.id === assetId) {
@@ -96,7 +103,7 @@ export default function AssetsWorkspace() {
         a.mimeType.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
-    if (!activeProjectId) {
+    if (!activeNovelId) {
         return (
             <div className="workspace-view" style={{ padding: '2rem', textAlign: 'center' }}>
                 <ImageIcon size={48} color="var(--color-text-muted)" style={{ marginBottom: '1rem' }} />

@@ -42,7 +42,13 @@ export class ContextEngine {
      * Assembles a Context Payload dynamically restricting cross-contamination of Timeline events
      * and strictly validating against Token Budgets prior to transmission.
      */
-    static async assemble(prompt: Prompt, targetSceneId: string, _pinnedObjectIds: string[] = [], excludedObjectIds: string[] = []): Promise<ContextAssembly> {
+    static async assemble(
+        prompt: Prompt,
+        targetSceneId: string | null,
+        manualInputs: Record<string, string> = {},
+        _pinnedObjectIds: string[] = [],
+        excludedObjectIds: string[] = []
+    ): Promise<ContextAssembly> {
 
         let assembly: ContextAssembly = {
             assembledSystemInstruction: prompt.systemInstruction,
@@ -53,59 +59,100 @@ export class ContextEngine {
             excludedSources: []
         }
 
-        const scene = await db.scenes.get(targetSceneId)
-        if (!scene) throw new Error("Context Engine fault: Primary target scene unresolved.")
+        const scene = targetSceneId ? await db.scenes.get(targetSceneId) : null
 
-        // Enforce Canon-Awareness / Timeline Limits (Baseline Phase 3 stub)
-        const sceneSortBound = scene.sortOrder;
-        // Apply temporal locking logic filtering subsequent entries mapped after sceneSortBound inside pinnedObjectIds checking bounds
-        if (sceneSortBound < 0) console.warn("Temporal isolation active logic triggered");
-        for (const input of prompt.inputs) {
+        if (!scene && prompt.inputs?.some(i => i.kind === 'context')) {
+            console.warn("Context Engine warning: Primary target scene unresolved but Context Inputs exist.")
+        }
 
-            if (input.type === 'Scene') {
-                const sceneText = extractTextFromJson(scene.content)
-                const tokens = estimateTokens(sceneText)
+        for (const input of (prompt.inputs || [])) {
+            const regex = new RegExp(`\\{\\{\\s*${input.name}\\s*\\}\\}`, 'gi')
 
-                if (excludedObjectIds.includes(scene.id)) {
-                    assembly.excludedSources.push({ id: scene.id, name: scene.name, reason: 'Manually excluded by user.' })
-                    continue;
-                }
-
-                if (assembly.totalEstimatedTokens + tokens > assembly.budgetLimit) {
-                    assembly.excludedSources.push({ id: scene.id, name: scene.name, reason: 'Context window budget exhausted.' })
-                    continue;
-                }
-
-                assembly.includedSources.push({ id: scene.id, name: scene.name, type: 'Scene', contentSpan: sceneText, estimatedTokens: tokens })
-                assembly.totalEstimatedTokens += tokens
-                assembly.assembledUserPrompt = assembly.assembledUserPrompt.replace(/\{\{\s*content\s*\}\}/gi, sceneText)
+            if (input.kind === 'manual') {
+                const val = manualInputs[input.name] || input.defaultValue || ''
+                assembly.assembledUserPrompt = assembly.assembledUserPrompt.replace(regex, String(val))
+                assembly.assembledSystemInstruction = assembly.assembledSystemInstruction.replace(regex, String(val))
             }
-            // For Phase 3, Timeline and Character inputs dynamically extract from occurrences mapping against scene bounds
-            else if (input.type === 'Character' || input.type === 'BibleEntry') {
-                // Scan local occurrences
-                const hits = await db.occurrences.where({ sceneId: scene.id }).toArray()
-                for (const hit of hits) {
-                    if (excludedObjectIds.includes(hit.entryId)) {
-                        assembly.excludedSources.push({ id: hit.entryId, name: 'Entity ' + hit.entryId, reason: 'Manually excluded by user.' })
+            else if (input.kind === 'context') {
+                if (!scene) {
+                    assembly.excludedSources.push({ id: 'N/A', name: input.name, reason: 'No active context sequence available.' })
+                    continue
+                }
+
+                if (input.type === 'CurrentScene' || input.type === 'Selection') {
+                    const sceneText = extractTextFromJson(scene.content)
+                    const tokens = estimateTokens(sceneText)
+
+                    if (excludedObjectIds.includes(scene.id)) {
+                        assembly.excludedSources.push({ id: scene.id, name: scene.name, reason: 'Manually excluded by user.' })
                         continue;
                     }
-
-                    const entry = await db.bibleEntries.get(hit.entryId)
-                    if (!entry) continue;
-
-                    const tokens = estimateTokens(entry.name); // Extend this dynamically mapping fieldValues natively
 
                     if (assembly.totalEstimatedTokens + tokens > assembly.budgetLimit) {
-                        assembly.excludedSources.push({ id: entry.id, name: entry.name, reason: 'Context window budget exhausted. Truncating.' })
+                        assembly.excludedSources.push({ id: scene.id, name: scene.name, reason: 'Context window budget exhausted.' })
                         continue;
                     }
 
-                    assembly.includedSources.push({ id: entry.id, name: entry.name, type: entry.type, contentSpan: '', estimatedTokens: tokens })
+                    assembly.includedSources.push({ id: scene.id, name: scene.name, type: 'Scene', contentSpan: sceneText, estimatedTokens: tokens })
                     assembly.totalEstimatedTokens += tokens
+
+                    // Replace variables
+                    assembly.assembledUserPrompt = assembly.assembledUserPrompt.replace(regex, sceneText)
+                    assembly.assembledSystemInstruction = assembly.assembledSystemInstruction.replace(regex, sceneText)
                 }
-            }
-            else {
-                assembly.excludedSources.push({ id: 'N/A', name: `Input ${input.type}`, reason: 'Provider Adapter abstraction pending for this vector.' })
+                else if (input.type === 'CharacterState' || input.type === 'RelevantBibleEntries') {
+                    // Quick mock retrieval
+                    const hits = await db.occurrences.where({ sceneId: scene.id }).toArray()
+                    let combinedText = ""
+                    for (const hit of hits) {
+                        if (excludedObjectIds.includes(hit.entryId)) {
+                            assembly.excludedSources.push({ id: hit.entryId, name: 'Entity ' + hit.entryId, reason: 'Manually excluded by user.' })
+                            continue;
+                        }
+
+                        const entry = await db.bibleEntries.get(hit.entryId)
+                        if (!entry) continue;
+
+                        const tokens = estimateTokens(entry.name);
+
+                        if (assembly.totalEstimatedTokens + tokens > assembly.budgetLimit) {
+                            assembly.excludedSources.push({ id: entry.id, name: entry.name, reason: 'Context window budget exhausted. Truncating.' })
+                            continue;
+                        }
+
+                        assembly.includedSources.push({ id: entry.id, name: entry.name, type: entry.type, contentSpan: '', estimatedTokens: tokens })
+                        assembly.totalEstimatedTokens += tokens
+                        combinedText += `\n[Codex: ${entry.name}]\n`
+                    }
+                    assembly.assembledUserPrompt = assembly.assembledUserPrompt.replace(regex, combinedText)
+                    assembly.assembledSystemInstruction = assembly.assembledSystemInstruction.replace(regex, combinedText)
+                }
+                else if (input.type === 'StoryGuides') {
+                    const novelEntries = await db.bibleEntries.where('novelId').equals(scene.novelId).toArray()
+                    const guides = novelEntries.filter(e => e.type === 'Story Guide')
+                    let combinedText = ""
+                    for (const g of guides) {
+                        if (g.excludeFromContext) continue;
+                        if (excludedObjectIds.includes(g.id)) {
+                            assembly.excludedSources.push({ id: g.id, name: g.name, reason: 'Manually excluded by user.' })
+                            continue;
+                        }
+                        const tokens = estimateTokens(g.description || g.name)
+                        if (assembly.totalEstimatedTokens + tokens > assembly.budgetLimit) {
+                            assembly.excludedSources.push({ id: g.id, name: g.name, reason: 'Context window budget exhausted. Truncating.' })
+                            continue;
+                        }
+
+                        assembly.includedSources.push({ id: g.id, name: g.name, type: 'Story Guide', contentSpan: '', estimatedTokens: tokens })
+                        assembly.totalEstimatedTokens += tokens
+                        combinedText += `\n[Story Guide: ${g.name}]\n${g.description || ''}\n`
+                    }
+                    assembly.assembledUserPrompt = assembly.assembledUserPrompt.replace(regex, combinedText)
+                    assembly.assembledSystemInstruction = assembly.assembledSystemInstruction.replace(regex, combinedText)
+                }
+                else {
+                    assembly.excludedSources.push({ id: 'N/A', name: `Input ${input.type}`, reason: 'Provider Adapter abstraction pending for this vector.' })
+                }
             }
         }
 

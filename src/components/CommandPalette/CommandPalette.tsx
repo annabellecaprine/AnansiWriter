@@ -3,11 +3,12 @@ import { Search, Hash, Users, Sparkles } from 'lucide-react'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../../db/database'
+import { confirmAlert } from '../../store/dialogStore'
 
 export default function CommandPalette() {
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState('')
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const navigate = useNavigate()
     const [results, setResults] = useState<{ id: string, name: string, type: string, action: string, path?: string, execute?: boolean, payload?: string, entity?: string, callback?: () => void }[]>([])
 
@@ -24,14 +25,14 @@ export default function CommandPalette() {
     }, [])
 
     useEffect(() => {
-        if (!open || !activeProjectId) {
+        if (!open || !activeNovelId) {
             setResults([])
             return
         }
 
         const buildIndex = async () => {
-            const s = await db.scenes.where({ projectId: activeProjectId }).toArray()
-            const b = await db.bibleEntries.where({ projectId: activeProjectId }).toArray()
+            const s = await db.scenes.where({ novelId: activeNovelId }).toArray()
+            const b = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
 
             let cmds: any[] = []
             const cleanQuery = query.toLowerCase()
@@ -48,8 +49,8 @@ export default function CommandPalette() {
                     { id: 'invoke-ai', name: 'Open Context Sandbox', type: 'Action', action: 'AI', path: '/sandbox' }
                 ].filter(c => c.name.toLowerCase().includes(cleanQuery.slice(1))))
             } else {
-                const mappedS = s.filter(x => x.name.toLowerCase().includes(cleanQuery)).map(x => ({ id: x.id, name: x.name, type: 'Scene', action: 'Jump To', path: '/writing', callback: () => useWorkspaceStore.getState().setActiveScene(x.id) }))
-                const mappedB = b.filter(x => x.name.toLowerCase().includes(cleanQuery)).map(x => ({ id: x.id, name: x.name, type: `Bible: ${x.type}`, action: 'Jump To', path: '/bible' }))
+                const mappedS = s.filter(x => x.name.toLowerCase().includes(cleanQuery)).map(x => ({ id: x.id, name: x.name, type: 'Scene', action: 'Jump To', path: `/novel/${activeNovelId}/write`, callback: () => useWorkspaceStore.getState().setActiveScene(x.id) }))
+                const mappedB = b.filter(x => x.name.toLowerCase().includes(cleanQuery)).map(x => ({ id: x.id, name: x.name, type: `Codex: ${x.type}`, action: 'Jump To', path: `/novel/${activeNovelId}/codex` }))
 
                 cmds = [...mappedS, ...mappedB]
                 if ("project settings".includes(cleanQuery)) cmds.push({ id: 'settings', name: 'Project Settings', type: 'Settings', action: 'Navigate', path: '/settings' })
@@ -59,7 +60,7 @@ export default function CommandPalette() {
         }
 
         buildIndex()
-    }, [query, open, activeProjectId])
+    }, [query, open, activeNovelId])
 
     if (!open) return null
 
@@ -87,11 +88,14 @@ export default function CommandPalette() {
                                 if (r.execute && r.payload) {
                                     if (r.id === 'create-char') {
                                         const id = crypto.randomUUID()
-                                        await db.bibleEntries.add({ id, projectId: activeProjectId as string, type: 'Character', name: r.payload || 'Unnamed', aliases: [], tags: [], createdAt: Date.now(), updatedAt: Date.now() })
-                                        navigate('/bible')
+                                        await db.bibleEntries.add({ id, novelId: activeNovelId as string, type: 'Character', name: r.payload || 'Unnamed', aliases: [], tags: [], createdAt: Date.now(), updatedAt: Date.now() })
+                                        navigate(`/novel/${activeNovelId}/codex`)
                                     }
                                     if (r.id === 'rapid-ai') {
-                                        alert(`Rapid AI invoked with query: ${r.payload}\n(Context engine hook fired)`)
+                                        await confirmAlert({
+                                            title: 'Rapid AI',
+                                            message: `Rapid AI invoked with query: ${r.payload}\n(Context engine hook fired)`
+                                        })
                                     }
                                 } else {
                                     if (r.callback) r.callback()

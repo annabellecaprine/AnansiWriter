@@ -20,7 +20,7 @@ export interface Provenance {
 export type EntityState = 'Planned' | 'Drafted' | 'Canon' | 'Retconned' | 'Discarded';
 
 export interface NarrativePosition {
-    bookId?: ID;
+    novelId?: ID;
     chapterId?: ID;
     sceneId?: ID;
     // A numerical weight for ordering chronologically
@@ -30,75 +30,84 @@ export interface NarrativePosition {
 // ─────────────────────────────────────────────────────────
 // Core Hierarchy
 // ─────────────────────────────────────────────────────────
-export interface Project {
-    id: ID;
-    name: string;
-    createdAt: number;
-    updatedAt: number;
-    version: number;
-    // Used to mark a project as in the Trash
-    isTrashed: boolean;
-    trashedAt?: number;
-    lastExportedAt?: number;
-}
 
 export interface Series {
     id: ID;
-    projectId: ID;
-    name: string;
-    sortOrder: number;
+    title: string;
+    description?: string;
+    coverAssetId?: string;
+    tags?: string[];
+    status?: string;
     createdAt: number;
     updatedAt: number;
 }
 
-export interface Book {
+export interface Novel {
     id: ID;
-    projectId: ID;
     seriesId?: ID;
-    name: string;
-    sortOrder: number;
+    seriesIndex?: number;
+    title: string;
+    subtitle?: string;
+    author?: string;
+    coverAssetId?: string;
+    summary?: string;
+    language?: string;
+    status?: string;
+    tags?: string[];
+    targetWordCount?: number;
+    planningContent?: object;
     createdAt: number;
     updatedAt: number;
 }
 
 export interface Act {
     id: ID;
-    projectId: ID;
-    bookId: ID;
+    novelId: ID;
     name: string;
     sortOrder: number;
+    planningContent?: object; // TipTap JSON
     createdAt: number;
     updatedAt: number;
 }
 
 export interface Chapter {
     id: ID;
-    projectId: ID;
-    bookId: ID;
+    novelId: ID;
     actId?: ID; // Acts are optional
     name: string;
     sortOrder: number;
+    planningContent?: object; // TipTap JSON
+    isTrashed?: boolean;
+    trashedAt?: number;
     createdAt: number;
     updatedAt: number;
 }
 
+export type SceneStatus = 'Idea' | 'Planned' | 'Draft' | 'Revised' | 'Edited' | 'Final'
+
 export interface Scene {
     id: ID;
-    projectId: ID;
-    bookId: ID;
+    novelId: ID;
     chapterId: ID;
     name: string;
+    subtitle?: string;
     content: object; // TipTap JSON
     pov?: string;
     povCharacterId?: string;
     location?: string;
-    status: string; // e.g., 'Draft', 'Revised', 'Final'
+    status: SceneStatus;
     wordCount: number;
     targetWordCount?: number;
     summary?: string;
     notes: string | string[];
+    labels?: string[];
+    planningContent?: object; // TipTap JSON
     narrativePosition?: NarrativePosition;
     sortOrder: number;
+    isArchived?: boolean;
+    archivedAt?: number;
+    isTrashed?: boolean;
+    trashedAt?: number;
     createdAt: number;
     updatedAt: number;
 }
@@ -106,7 +115,7 @@ export interface Scene {
 export interface SceneRevision {
     id: ID;
     sceneId: ID;
-    projectId: ID;
+    novelId: ID;
     content: object; // TipTap JSON at the time
     wordCount: number;
     createdAt: number;
@@ -117,18 +126,30 @@ export interface SceneRevision {
 // ─────────────────────────────────────────────────────────
 export interface BibleEntry {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     name: string;
     type: string; // 'Character', 'Location', 'Organization', etc.
     tags: string[];
     aliases: string[];
+    keywords?: string[];
+    description?: string;
+
+    // Phase C: AI Override Flags
+    alwaysIncludeInContext?: boolean;
+    excludeFromContext?: boolean;
+    doNotTrack?: boolean;
+
+    isTrashed?: boolean;
+    trashedAt?: number;
     createdAt: number;
     updatedAt: number;
 }
 
 export interface FieldValue {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     entryId: ID;
     fieldKey: string; // "eye_color", "occupation"
     // Content can be plain text, TipTap JSON, or other primitives
@@ -143,7 +164,8 @@ export interface FieldValue {
 
 export interface Relationship {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     sourceId: ID; // BibleEntry ID
     targetId: ID; // BibleEntry ID
     type: string; // e.g., 'parent', 'enemy', 'member'
@@ -162,7 +184,8 @@ export interface Relationship {
 // ─────────────────────────────────────────────────────────
 export interface Asset {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     name: string;
     mimeType: string;
     blob: Blob;
@@ -172,38 +195,89 @@ export interface Asset {
 
 export interface AssetLink {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     assetId: ID;
     targetId: ID; // Can be a BibleEntry, a Scene, etc.
     targetType: string;
-    role: string; // e.g., 'primary_portrait', 'map_reference'
+    role: string; // e.g., 'primary_portrait', 'map_reference', 'Cover'
 }
 
 // ─────────────────────────────────────────────────────────
 // AI & Prompts
 // ─────────────────────────────────────────────────────────
+
+export interface AIChatThread {
+    id: ID;
+    novelId: ID;
+    title: string;
+    description?: string;
+    messages: { role: 'user' | 'assistant' | 'system', content: string }[];
+    modelId: string;
+    contextReferences: { type: string, id: string, name: string }[];
+    isPinned: boolean;
+    isArchived: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface PromptCategory {
+    id: ID;
+    seriesId?: ID;
+    novelId?: ID;
+    name: string;
+    sortOrder: number;
+    isSystem: boolean; // built-in category that cannot be normally deleted
+}
+
 export interface PromptInputRule {
-    type: 'Scene' | 'Chapter' | 'Book' | 'Character' | 'BibleEntry' | 'Relationship' | 'Timeline' | 'Notes' | 'Selection' | 'Asset' | 'PinnedContext';
+    kind: 'context' | 'manual';
+    name: string;
+    description?: string;
+
+    // For kind = 'context'
+    type?: 'Selection' | 'CurrentScene' | 'CurrentScenePlan' | 'CurrentChapter' | 'CurrentBook' | 'PreviousScene' | 'PreviousNScenes' | 'NextScene' | 'RelevantBibleEntries' | 'SpecificBibleEntries' | 'CharacterState' | 'RelationshipState' | 'CurrentLocation' | 'TimelineState' | 'PlanningNotes' | 'Assets' | 'SeriesContext' | 'PinnedContext' | 'StoryGuides';
+    isAutomatic?: boolean;
+    recencyCount?: number; // Suggests grabbing a specific numerical limit on narrative proximity
+
+    // For kind = 'manual'
+    manualType?: 'text' | 'multiline' | 'number' | 'boolean' | 'select' | 'multi-select';
+    options?: string[]; // for select/multi-select
+    defaultValue?: any;
+    min?: number;
+    max?: number;
+
+    // Shared
     isRequired: boolean;
-    isAutomatic: boolean;
     maxItems?: number;
-    recencyBias?: boolean; // Suggests to grab narrative proximity natively
     tokenBudgetLimit?: number; // Caps consumption logic structurally
+    includeImages?: boolean; // for vision capable contexts
 }
 
 export interface Prompt {
     id: ID;
-    projectId?: ID;
+    seriesId?: ID;
+    novelId?: ID;
+    scope: 'built-in' | 'global' | 'project' | 'series' | 'novel';
+
+    categoryId: ID;
 
     // General
     name: string;
-    category: string;
     tags: string[];
     description: string; // Human readable documentation
+    outputMode: 'chat' | 'suggestion' | 'diff' | 'structured';
+
+    // Model Configuration
     defaultModel: string;
+    allowedModels: string[];
+
+    // Inference Settings
     temperature: number;
     maxOutputTokens: number;
     tokenBudget: number; // The maximum amount context should consume globally
+
+    // Additional parameters like topP could be added here in the future
 
     // Instructions
     systemInstruction: string;
@@ -214,13 +288,19 @@ export interface Prompt {
 
     isFavorite: boolean;
     isEnabled: boolean;
+
+    // For soft deletes
+    isTrashed: boolean;
+    trashedAt?: number;
+
     createdAt: number;
     updatedAt: number;
 }
 
 export interface AIModel {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     provider: string; // e.g., 'chutes' or 'openrouter'
     modelId: string; // e.g., 'anthropic/claude-3-haiku'
     name: string;
@@ -248,7 +328,8 @@ export interface StagingMessage {
 
 export interface StagingSession {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     name: string;
     mode: string; // 'Character Interview', 'Voice Test', etc.
     context: object; // Serialized context state
@@ -264,8 +345,15 @@ export interface StagingSession {
 
 export interface AIRequestHistory {
     id: ID;
-    projectId: ID;
-    promptName: string;
+    seriesId?: ID;
+    novelId?: ID;
+    promptName: string;                     // Legacy/fallback identifier
+    executedPromptSnapshot?: Prompt;        // Complete configuration mapping at execution time
+    executionMetadata?: {                   // Specific overrides or actual inference settings used
+        temperatureUsed: number;
+        outputTokensUsed: number;
+        inputVariablesResolved: Record<string, any>;
+    };
     modelId: string;
     tokenCount: number;
     sourceId?: ID; // Associated object ID
@@ -278,7 +366,7 @@ export interface AIRequestHistory {
 // ─────────────────────────────────────────────────────────
 export interface Occurrence {
     id: ID;
-    projectId: ID;
+    novelId: ID;
     sceneId: ID;
     entryId: ID; // BibleEntry ID
     keywordOrAlias: string;
@@ -289,7 +377,8 @@ export interface Occurrence {
 
 export interface Snapshot {
     id: ID;
-    projectId: ID;
+    seriesId?: ID;
+    novelId?: ID;
     name: string;
     reason: string; // 'pre-migration', 'bulk-delete'
     data: object; // Full ZIP or serialized DB

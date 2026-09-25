@@ -4,16 +4,16 @@ import { Hash, MapPin } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 
-export default function ReferencedByPanel({ entryId, projectId }: { entryId: string, projectId: string }) {
+export default function ReferencedByPanel({ entryId, novelId }: { entryId: string, novelId: string }) {
     const [occurrences, setOccurrences] = useState<any[]>([])
     const navigate = useNavigate()
     const { setActiveScene } = useWorkspaceStore()
 
     useEffect(() => {
-        if (!entryId || !projectId) return
+        if (!entryId || !novelId) return
 
         const loadOccurrences = async () => {
-            const scenes = await db.scenes.where({ projectId }).toArray()
+            const scenes = await db.scenes.where({ novelId }).toArray()
 
             const backlinks = scenes.filter(s => {
                 const str = JSON.stringify(s.content)
@@ -30,7 +30,7 @@ export default function ReferencedByPanel({ entryId, projectId }: { entryId: str
             setOccurrences(backlinks)
         }
         loadOccurrences()
-    }, [entryId, projectId])
+    }, [entryId, novelId])
 
     if (occurrences.length === 0) return null
 

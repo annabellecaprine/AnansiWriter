@@ -4,9 +4,8 @@ import { applyMigrations } from './migrations'
 
 export class AnansiDatabase extends Dexie {
     appSettings!: Table<Schema.AppSetting, string>
-    projects!: Table<Schema.Project, Schema.ID>
     series!: Table<Schema.Series, Schema.ID>
-    books!: Table<Schema.Book, Schema.ID>
+    novels!: Table<Schema.Novel, Schema.ID>
     acts!: Table<Schema.Act, Schema.ID>
     chapters!: Table<Schema.Chapter, Schema.ID>
     scenes!: Table<Schema.Scene, Schema.ID>
@@ -20,9 +19,11 @@ export class AnansiDatabase extends Dexie {
     assetLinks!: Table<Schema.AssetLink, Schema.ID>
 
     prompts!: Table<Schema.Prompt, Schema.ID>
+    promptCategories!: Table<Schema.PromptCategory, Schema.ID>
     aiModels!: Table<Schema.AIModel, Schema.ID>
     stagingSessions!: Table<Schema.StagingSession, Schema.ID>
     aiRequestHistory!: Table<Schema.AIRequestHistory, Schema.ID>
+    aiChatThreads!: Table<Schema.AIChatThread, Schema.ID>
 
     occurrences!: Table<Schema.Occurrence, Schema.ID>
     snapshots!: Table<Schema.Snapshot, Schema.ID>
@@ -34,30 +35,37 @@ export class AnansiDatabase extends Dexie {
         // Base Schema (Version 1)
         // Only indexed properties need to be defined in .stores()
         // ─────────────────────────────────────────────────────────
-        this.version(1).stores({
+        this.version(2).stores({
             appSettings: 'key',
-            projects: 'id, createdAt',
-            series: 'id, projectId, sortOrder',
-            books: 'id, projectId, seriesId, sortOrder',
-            acts: 'id, projectId, bookId, sortOrder',
-            chapters: 'id, projectId, bookId, actId, sortOrder',
-            scenes: 'id, projectId, bookId, chapterId, sortOrder',
-            sceneRevisions: 'id, sceneId, projectId, createdAt',
+            series: 'id, createdAt',
+            novels: 'id, seriesId, seriesIndex, createdAt',
+            acts: 'id, novelId, sortOrder',
+            chapters: 'id, novelId, actId, sortOrder',
+            scenes: 'id, novelId, chapterId, sortOrder',
+            sceneRevisions: 'id, sceneId, novelId, createdAt',
 
-            bibleEntries: 'id, projectId, type',
-            fieldValues: 'id, [projectId+entryId], projectId, entryId, fieldKey, state',
-            relationships: 'id, [projectId+sourceId], [projectId+targetId], projectId, sourceId, targetId, type, state',
+            bibleEntries: 'id, seriesId, novelId, type',
+            fieldValues: 'id, [novelId+entryId], [seriesId+entryId], novelId, seriesId, entryId, fieldKey, state',
+            relationships: 'id, [novelId+sourceId], [novelId+targetId], [seriesId+sourceId], [seriesId+targetId], novelId, seriesId, sourceId, targetId, type, state',
 
-            assets: 'id, projectId, mimeType',
-            assetLinks: 'id, [projectId+assetId], projectId, assetId, targetId, targetType, role',
+            assets: 'id, novelId, seriesId, mimeType',
+            assetLinks: 'id, [novelId+assetId], [seriesId+assetId], novelId, seriesId, assetId, targetId, targetType, role',
 
-            prompts: 'id, projectId, category, isFavorite',
-            aiModels: 'id, projectId, provider',
-            stagingSessions: 'id, projectId, mode',
-            aiRequestHistory: 'id, projectId, promptName, modelId, timestamp',
+            prompts: 'id, novelId, seriesId, category, isFavorite',
+            aiModels: 'id, novelId, seriesId, provider',
+            stagingSessions: 'id, novelId, seriesId, mode',
+            aiRequestHistory: 'id, novelId, seriesId, promptName, modelId, timestamp',
 
-            occurrences: 'id, [projectId+sceneId], [projectId+entryId], projectId, sceneId, entryId',
-            snapshots: 'id, projectId, reason, createdAt'
+            occurrences: 'id, [novelId+sceneId], [novelId+entryId], novelId, sceneId, entryId',
+            snapshots: 'id, novelId, seriesId, reason, createdAt'
+        })
+
+        this.version(3).stores({
+            scenes: 'id, novelId, chapterId, sortOrder, isArchived'
+        })
+
+        this.version(4).stores({
+            aiChatThreads: 'id, novelId, isPinned, isArchived, updatedAt'
         })
 
         // Apply any subsequent migrations

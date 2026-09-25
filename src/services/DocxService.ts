@@ -72,19 +72,19 @@ export class DocxService {
     /**
      * Exports a specific Book (or Series) combining all child chapters and scenes
      */
-    static async exportBookToDocx(projectId: string, bookId: string): Promise<Blob> {
-        const book = await db.books.get(bookId)
+    static async exportBookToDocx(novelId: string, seriesId: string): Promise<Blob> {
+        const book = await db.novels.get(seriesId)
         if (!book) throw new Error("Book not found")
 
-        const chapters = await db.chapters.where({ bookId }).toArray()
+        const chapters = await db.chapters.where({ seriesId }).toArray()
         chapters.sort((a, b) => a.sortOrder - b.sortOrder)
 
-        const allScenes = await db.scenes.where({ projectId }).toArray()
+        const allScenes = await db.scenes.where({ novelId }).toArray()
 
         let docChildren: any[] = []
 
         docChildren.push(new Paragraph({
-            text: book.name,
+            text: book.title,
             heading: HeadingLevel.TITLE
         }))
 

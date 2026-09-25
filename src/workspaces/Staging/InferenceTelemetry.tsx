@@ -3,18 +3,19 @@ import { db } from '../../db/database'
 import { Activity, Clock, Search } from 'lucide-react'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import type { AIRequestHistory, AIModel } from '../../db/schema'
+import { confirmAction } from '../../store/dialogStore'
 
 export default function InferenceTelemetry() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [history, setHistory] = useState<AIRequestHistory[]>([])
     const [models, setModels] = useState<AIModel[]>([])
     const [selectedId, setSelectedId] = useState<string | null>(null)
 
     useEffect(() => {
-        if (!activeProjectId) return;
+        if (!activeNovelId) return;
         const load = async () => {
-            const h = await db.aiRequestHistory.where({ projectId: activeProjectId }).reverse().sortBy('timestamp')
-            const m = await db.aiModels.where({ projectId: activeProjectId }).toArray()
+            const h = await db.aiRequestHistory.where({ novelId: activeNovelId }).reverse().sortBy('timestamp')
+            const m = await db.aiModels.where({ novelId: activeNovelId }).toArray()
 
             // Clean up old age history logic > 90 days or > 500 count locally
             const pruned = h.slice(0, 500)
@@ -27,7 +28,7 @@ export default function InferenceTelemetry() {
             setHistory(pruned)
         }
         load()
-    }, [activeProjectId])
+    }, [activeNovelId])
 
     const calculateCost = (h: AIRequestHistory) => {
         const m = models.find(mod => mod.modelId === h.modelId)
@@ -37,8 +38,14 @@ export default function InferenceTelemetry() {
     }
 
     const clearHistory = async () => {
-        if (confirm("Destroy inference caches entirely?")) {
-            await db.aiRequestHistory.where({ projectId: activeProjectId }).delete()
+        const confirmed = await confirmAction({
+            title: 'Clear Inference Telemetry',
+            message: 'Destroy inference caches entirely? This action cannot be undone.',
+            isDestructive: true,
+            confirmLabel: 'Clear Metrics'
+        })
+        if (confirmed) {
+            await db.aiRequestHistory.where({ novelId: activeNovelId }).delete()
             setHistory([])
         }
     }

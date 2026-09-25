@@ -11,18 +11,13 @@ import {
     Settings,
     PanelLeftClose,
     PanelLeftOpen,
-    Search as SearchIcon
+    Search as SearchIcon,
+    MessageSquare
 } from 'lucide-react'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 
 export default function Sidebar({ onOpenSearch }: { onOpenSearch?: () => void }) {
-    const { isSidebarOpen, toggleSidebar, activeProjectId } = useWorkspaceStore()
-
-    // These routes require an active project
-    const projectProps = activeProjectId ? {} : {
-        onClick: (e: React.MouseEvent) => e.preventDefault(),
-        style: { opacity: 0.5, cursor: 'not-allowed' }
-    }
+    const { isSidebarOpen, toggleSidebar, activeNovelId } = useWorkspaceStore()
 
     return (
         <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
@@ -34,42 +29,61 @@ export default function Sidebar({ onOpenSearch }: { onOpenSearch?: () => void })
             </div>
 
             <nav className="nav-links">
-                <NavLink to="/project" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <NavLink to="/library" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <FolderOpen size={20} />
-                    {isSidebarOpen && <span>Project</span>}
+                    {isSidebarOpen && <span>Library</span>}
                 </NavLink>
                 <button className="nav-item" onClick={onOpenSearch} style={{ border: 'none', background: 'transparent', textAlign: 'left', width: '100%', fontFamily: 'inherit', color: 'inherit', cursor: 'pointer' }}>
                     <SearchIcon size={20} />
                     {isSidebarOpen && <span>Search</span>}
                 </button>
-                <NavLink to="/writing" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <PenTool size={20} />
-                    {isSidebarOpen && <span>Writing</span>}
-                </NavLink>
-                <NavLink to="/planning" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <Map size={20} />
-                    {isSidebarOpen && <span>Planning</span>}
-                </NavLink>
-                <NavLink to="/bible" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <BookOpen size={20} />
-                    {isSidebarOpen && <span>Bible / Codex</span>}
-                </NavLink>
-                <NavLink to="/assets" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <ImageIcon size={20} />
-                    {isSidebarOpen && <span>Assets</span>}
-                </NavLink>
-                <NavLink to="/prompts" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <Wand2 size={20} />
-                    {isSidebarOpen && <span>Prompts</span>}
-                </NavLink>
-                <NavLink to="/staging" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <Ghost size={20} />
-                    {isSidebarOpen && <span>Staging</span>}
-                </NavLink>
-                <NavLink to="/review" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} {...projectProps}>
-                    <BarChart size={20} />
-                    {isSidebarOpen && <span>Review</span>}
-                </NavLink>
+
+                {activeNovelId && (
+                    <>
+                        <div style={{ height: '1px', background: 'var(--color-border)', margin: '1rem 0' }} />
+                        <div style={{ padding: '0 1rem', fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>
+                            {isSidebarOpen ? 'Novel' : '...'}
+                        </div>
+                        <NavLink to={`/novel/${activeNovelId}/plan`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <Map size={20} />
+                            {isSidebarOpen && <span>Plan</span>}
+                        </NavLink>
+                        <NavLink to={`/novel/${activeNovelId}/write`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <PenTool size={20} />
+                            {isSidebarOpen && <span>Write</span>}
+                        </NavLink>
+                        <NavLink to={`/novel/${activeNovelId}/codex`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <BookOpen size={20} />
+                            {isSidebarOpen && <span>Codex</span>}
+                        </NavLink>
+                        <NavLink to={`/novel/${activeNovelId}/assets`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <ImageIcon size={20} />
+                            {isSidebarOpen && <span>Assets</span>}
+                        </NavLink>
+                        <NavLink to={`/novel/${activeNovelId}/prompts`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <Wand2 size={20} />
+                            {isSidebarOpen && <span>Prompts</span>}
+                        </NavLink>
+                        <NavLink to={`/novel/${activeNovelId}/staging`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <Ghost size={20} />
+                            {isSidebarOpen && <span>Staging</span>}
+                        </NavLink>
+                        <NavLink to={`/novel/${activeNovelId}/review`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <BarChart size={20} />
+                            {isSidebarOpen && <span>Review</span>}
+                        </NavLink>
+
+                        <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.5rem 1rem' }} />
+                        <button
+                            className="nav-item"
+                            onClick={useWorkspaceStore.getState().toggleChatPane}
+                            style={{ border: 'none', background: 'transparent', textAlign: 'left', width: '100%', fontFamily: 'inherit', color: 'inherit', cursor: 'pointer' }}
+                        >
+                            <MessageSquare size={20} />
+                            {isSidebarOpen && <span>AI Chat</span>}
+                        </button>
+                    </>
+                )}
             </nav>
 
             <div className="sidebar-footer">

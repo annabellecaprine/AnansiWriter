@@ -5,12 +5,12 @@ import type { AnansiDatabase } from './database'
  * Version 1 is defined as the baseline in database.ts.
  */
 export function applyMigrations(_db: AnansiDatabase) {
-    // Example of how future migrations will be structured:
-    //
-    // db.version(2).stores({
-    //   newTable: 'id, projectId',
-    //   projects: 'id, createdAt, newIndex'
-    // }).upgrade(tx => {
-    //   // data transformation logic here
-    // })
+    _db.version(2).stores({
+        assetLinks: 'id, [projectId+assetId], [projectId+targetId], projectId, assetId, targetId, targetType, role'
+    })
+
+    _db.version(3).stores({
+        promptCategories: 'id, [projectId+isSystem], projectId, sortOrder',
+        prompts: 'id, projectId, categoryId, scope, isFavorite, isTrashed'
+    })
 }

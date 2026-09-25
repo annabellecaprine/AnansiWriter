@@ -81,13 +81,13 @@ export class EpubService {
     /**
      * Generates an EPUB 3 valid ZIP container directly in the browser.
      */
-    static async generateEpub(bookId: string, _projectId: string, config: EpubConfig): Promise<Blob> {
-        const book = await db.books.get(bookId)
+    static async generateEpub(seriesId: string, _novelId: string, config: EpubConfig): Promise<Blob> {
+        const book = await db.novels.get(seriesId)
         if (!book) throw new Error('Book not found')
 
         // Fetch ordered chapters and scenes
-        const chapters = await db.chapters.where({ bookId }).sortBy('sortOrder')
-        const allScenes = await db.scenes.where({ bookId }).toArray()
+        const chapters = await db.chapters.where({ seriesId }).sortBy('sortOrder')
+        const allScenes = await db.scenes.where({ seriesId }).toArray()
 
         const zip = new JSZip()
 

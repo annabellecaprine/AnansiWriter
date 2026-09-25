@@ -7,8 +7,8 @@ export class SafetyService {
      * Performs a 100% accurate duplication of a project by routing it 
      * through the native binary compilation and re-import lifecycle.
      */
-    static async duplicateProject(projectId: string): Promise<string> {
-        const rawZipBlob = await ExportService.exportProject(projectId)
+    static async duplicateProject(novelId: string): Promise<string> {
+        const rawZipBlob = await ExportService.exportProject(novelId)
         const mockFile = new File([rawZipBlob], 'duplicate-in-memory.storyproject')
         return await ImportService.validateAndImportProject(mockFile, { importAsCopy: true })
     }
@@ -18,12 +18,12 @@ export class SafetyService {
      * into the local IndexedDB Snapshots table, creating an implicit restore point 
      * prior to dangerous operations.
      */
-    static async createSnapshot(projectId: string, reason: string): Promise<void> {
-        const rawZipBlob = await ExportService.exportProject(projectId)
+    static async createSnapshot(novelId: string, reason: string): Promise<void> {
+        const rawZipBlob = await ExportService.exportProject(novelId)
 
         await db.snapshots.add({
             id: crypto.randomUUID(),
-            projectId,
+            novelId,
             name: `Snapshot: ${reason}`,
             reason,
             data: rawZipBlob,

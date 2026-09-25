@@ -4,16 +4,18 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { db } from '../../db/database'
 import { Link2 } from 'lucide-react'
 
+import { confirmAction, promptInput } from '../../store/dialogStore'
+
 // Basic Component to list timeline-aware bi-directional connections
 export default function RelationshipsPanel({ entryId }: { entryId: string }) {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [rels, setRels] = useState<any[]>([])
     const [namesMap, setNamesMap] = useState<Record<string, string>>({})
     const [editingRelId, setEditingRelId] = useState<string | null>(null)
 
     const loadRelationships = async () => {
-        if (!activeProjectId) return
-        const relationships = await BibleService.getRelationships(activeProjectId, entryId)
+        if (!activeNovelId) return
+        const relationships = await BibleService.getRelationships(activeNovelId, entryId)
         setRels(relationships)
 
         // Parallel load names
@@ -35,14 +37,25 @@ export default function RelationshipsPanel({ entryId }: { entryId: string }) {
 
     useEffect(() => {
         loadRelationships()
-    }, [activeProjectId, entryId])
+    }, [activeNovelId, entryId])
 
     const handleAddRelationship = async () => {
-        if (!activeProjectId) return
-        const targetIdPrompt = window.prompt("Enter Target ID (UUID):")
-        const relType = window.prompt("Relationship Type (e.g. 'Sibling', 'Rival'):")
+        if (!activeNovelId) return
+        const targetIdPrompt = await promptInput({
+            title: 'Add Relationship',
+            message: 'Enter Target Entity ID (UUID):',
+            placeholder: 'Target Entity UUID'
+        })
+        if (!targetIdPrompt) return
+
+        const relType = await promptInput({
+            title: 'Relationship Type',
+            message: 'Enter relationship type (e.g. "Sibling", "Rival", "Ally"):',
+            placeholder: 'Type / Role'
+        })
+
         if (targetIdPrompt && relType) {
-            await BibleService.createRelationship(activeProjectId, entryId, targetIdPrompt, relType)
+            await BibleService.createRelationship(activeNovelId, entryId, targetIdPrompt, relType)
             loadRelationships()
         }
     }
@@ -54,8 +67,16 @@ export default function RelationshipsPanel({ entryId }: { entryId: string }) {
     }
 
     const handleDeleteRel = async (relId: string) => {
-        await db.relationships.delete(relId)
-        loadRelationships()
+        const confirmed = await confirmAction({
+            title: 'Delete Relationship',
+            message: 'Are you sure you want to remove this relationship connection?',
+            isDestructive: true,
+            confirmLabel: 'Delete'
+        })
+        if (confirmed) {
+            await db.relationships.delete(relId)
+            loadRelationships()
+        }
     }
 
     return (

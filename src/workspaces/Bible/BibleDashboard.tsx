@@ -1,28 +1,29 @@
 import { useState, useEffect } from 'react'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { Plus, Search, User, Map, Compass } from 'lucide-react'
-import { db } from '../../db/database'
 import { BibleService } from '../../services/BibleService'
-import BibleEntryEditor from './BibleEntryEditor'
+import { BibleLibraryPane } from './BibleLibraryPane'
+import { BibleEntryPane } from './BibleEntryPane'
+import { NewEntryModal } from './modals/NewEntryModal'
 import { OccurrenceReviewQueue } from './OccurrenceReviewQueue'
+import type { BibleEntry } from '../../db/schema'
 
 export default function BibleDashboard() {
-    const { activeProjectId } = useWorkspaceStore()
-    const [entries, setEntries] = useState<any[]>([])
+    const { activeNovelId } = useWorkspaceStore()
+    const [entries, setEntries] = useState<BibleEntry[]>([])
     const [activeEntryId, setActiveEntryId] = useState<string | null>(null)
-    const [searchQuery, setSearchQuery] = useState('')
+    const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
 
     const loadEntries = () => {
-        if (activeProjectId) {
-            db.bibleEntries.where({ projectId: activeProjectId }).toArray().then(setEntries)
+        if (activeNovelId) {
+            BibleService.listActiveEntries(activeNovelId).then(setEntries)
         }
     }
 
     useEffect(() => {
         loadEntries()
-    }, [activeProjectId])
+    }, [activeNovelId])
 
-    if (!activeProjectId) {
+    if (!activeNovelId) {
         return (
             <div className="workspace-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>
@@ -32,113 +33,48 @@ export default function BibleDashboard() {
         )
     }
 
-    if (activeEntryId) {
-        return <BibleEntryEditor entryId={activeEntryId} onBack={() => { setActiveEntryId(null); loadEntries(); }} />
-    }
-
-    const handleCreate = async (type: string) => {
-        const name = window.prompt(`Enter a name for the new ${type}:`)
-        if (!name) return
-        const newId = await BibleService.createEntryUsingTemplate(activeProjectId, name, type)
-        setActiveEntryId(newId)
-    }
-
     return (
-        <div className="workspace-view">
-            <header className="workspace-header">
-                <h1>Bible Codex</h1>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <div style={{ position: 'relative' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-                        <input
-                            type="text"
-                            placeholder="Search entries, tags, aliases..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{ paddingLeft: '2rem', width: '250px' }}
-                        />
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button className="btn" onClick={() => {
-                            if (!activeProjectId) return
-                            const worker = new Worker(new URL('../../workers/indexer.worker.ts', import.meta.url), { type: 'module' })
-                            worker.postMessage({ action: 'INDEX_PROJECT', projectId: activeProjectId })
-                            worker.onmessage = (e) => {
-                                if (e.data.status === 'DONE') {
-                                    alert(`Indexing complete! Mapped ${e.data.count} entity occurrences across the text.`)
-                                    worker.terminate()
-                                } else if (e.data.status === 'ERROR') {
-                                    alert(`Indexer failed: ${e.data.error}`)
-                                    worker.terminate()
-                                }
-                            }
-                        }} style={{ background: 'var(--color-surface-hover)' }}>
-                            Run Indexer
-                        </button>
-                        <button className="btn" onClick={() => handleCreate('Lore')}>
-                            <Plus size={18} />
-                            New Entry
-                        </button>
-                    </div>
-                </div>
-            </header>
+        <div style={{ padding: 0, height: '100%', width: '100%', display: 'flex', backgroundColor: 'var(--color-bg)' }}>
 
-            <div className="project-grid">
-                <div className="project-card create-new" onClick={() => handleCreate('Character')} style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                        <User size={20} color="var(--color-accent)" />
-                        <h3>Create Character</h3>
-                    </div>
-                </div>
-
-                <div className="project-card create-new" onClick={() => handleCreate('Location')} style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                        <Map size={20} color="var(--color-accent)" />
-                        <h3>Create Location</h3>
-                    </div>
-                </div>
-
-                <div className="project-card create-new" onClick={() => handleCreate('Lore')} style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                        <Compass size={20} color="var(--color-accent)" />
-                        <h3>Create Lore/Concept</h3>
-                    </div>
-                </div>
+            {/* Left Library Pane */}
+            <div style={{ width: '320px', borderRight: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', display: 'flex', flexDirection: 'column' }}>
+                <BibleLibraryPane
+                    entries={entries}
+                    activeEntryId={activeEntryId}
+                    onSelectEntry={setActiveEntryId}
+                    onNewEntry={() => setIsNewEntryOpen(true)}
+                />
             </div>
 
-            <OccurrenceReviewQueue />
+            {/* Right Entry Content Pane */}
+            <div style={{ flex: 1, height: '100%', overflowY: 'auto', backgroundColor: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
+                {activeEntryId ? (
+                    <BibleEntryPane
+                        entryId={activeEntryId}
+                        onRefreshLibrary={loadEntries}
+                        onClose={() => setActiveEntryId(null)}
+                    />
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
+                        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: 500 }}>Select or Create an Entry</h2>
+                        <button className="btn outline" onClick={() => setIsNewEntryOpen(true)}>+ New Entry</button>
 
-            <div style={{ marginTop: '2rem' }}>
-                <h2 style={{ marginBottom: '1rem', color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>Recent Entries</h2>
-                {entries.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>No entries constructed in this project yet.</p>}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {entries
-                        .filter(e => {
-                            if (!searchQuery) return true
-                            const q = searchQuery.toLowerCase()
-                            return e.name.toLowerCase().includes(q)
-                                || e.aliases?.some((a: string) => a.toLowerCase().includes(q))
-                                || e.tags?.some((t: string) => t.toLowerCase().includes(q))
-                        })
-                        .map(e => (
-                            <div
-                                key={e.id}
-                                onClick={() => setActiveEntryId(e.id)}
-                                style={{ padding: '1rem', background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}
-                            >
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 500 }}>{e.name}</span>
-                                    {e.tags?.length > 0 && (
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            {e.tags.map((t: string) => <span key={t} className="status-badge" style={{ background: 'var(--color-surface-hover)' }}>{t}</span>)}
-                                        </div>
-                                    )}
-                                </div>
-                                <span style={{ color: 'var(--color-text-muted)' }}>{e.type}</span>
-                            </div>
-                        ))}
-                </div>
+                        <div style={{ marginTop: '3rem', width: '80%', maxWidth: '600px' }}>
+                            <OccurrenceReviewQueue />
+                        </div>
+                    </div>
+                )}
             </div>
+
+            <NewEntryModal
+                isOpen={isNewEntryOpen}
+                onClose={() => setIsNewEntryOpen(false)}
+                onEntryCreated={(id) => {
+                    setIsNewEntryOpen(false)
+                    loadEntries()
+                    setActiveEntryId(id)
+                }}
+            />
         </div>
     )
 }

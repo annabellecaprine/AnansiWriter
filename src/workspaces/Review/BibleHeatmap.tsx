@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { Grid, Eye, Clock } from 'lucide-react'
 
 export default function BibleHeatmap() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [scenes, setScenes] = useState<any[]>([])
     const [entries, setEntries] = useState<any[]>([])
     const [matrix, setMatrix] = useState<Record<string, Record<string, { confirmed: number, heuristic: number }>>>({})
@@ -12,10 +12,10 @@ export default function BibleHeatmap() {
     const [mode, setMode] = useState<'manuscript' | 'narrative'>('manuscript')
 
     useEffect(() => {
-        if (!activeProjectId) return
+        if (!activeNovelId) return
 
         const buildMatrix = async () => {
-            let s = await db.scenes.where({ projectId: activeProjectId }).toArray()
+            let s = await db.scenes.where({ novelId: activeNovelId }).toArray()
             // Manuscript Order
             s.sort((a, b) => a.sortOrder - b.sortOrder)
             // Narrative Order sorts by underlying NarrativePosition
@@ -28,10 +28,10 @@ export default function BibleHeatmap() {
             }
             setScenes(s)
 
-            const e = await db.bibleEntries.where({ projectId: activeProjectId }).toArray()
+            const e = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
             setEntries(e.filter(b => b.type === 'Character' || b.type === 'Location'))
 
-            const occ = await db.occurrences.where({ projectId: activeProjectId }).toArray()
+            const occ = await db.occurrences.where({ novelId: activeNovelId }).toArray()
 
             let max = 1
             const map: Record<string, Record<string, { confirmed: number, heuristic: number }>> = {}
@@ -56,7 +56,7 @@ export default function BibleHeatmap() {
             setMaxVal(max)
         }
         buildMatrix()
-    }, [activeProjectId, mode])
+    }, [activeNovelId, mode])
 
     if (scenes.length === 0 || entries.length === 0) return null
 

@@ -8,18 +8,18 @@ export interface PdfConfig {
 }
 
 export class PdfService {
-    static async generatePdf(bookId: string, _projectId: string, config: PdfConfig): Promise<void> {
-        const book = await db.books.get(bookId)
+    static async generatePdf(seriesId: string, _novelId: string, config: PdfConfig): Promise<void> {
+        const book = await db.novels.get(seriesId)
         if (!book) throw new Error('Book not found')
 
-        const chapters = await db.chapters.where({ bookId }).sortBy('sortOrder')
-        const allScenes = await db.scenes.where({ bookId }).toArray()
+        const chapters = await db.chapters.where({ seriesId }).sortBy('sortOrder')
+        const allScenes = await db.scenes.where({ seriesId }).toArray()
 
         let htmlString = `
             <!DOCTYPE html>
             <html>
                 <head>
-                    <title>${book.name}</title>
+                    <title>${book.title}</title>
                     <style>
                         @page {
                             margin: 1in;
@@ -79,7 +79,7 @@ export class PdfService {
                 </head>
                 <body>
                     <div class="title-page">
-                        <h1>${book.name}</h1>
+                        <h1>${book.title}</h1>
                     </div>
         `
 

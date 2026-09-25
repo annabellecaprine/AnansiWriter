@@ -6,13 +6,15 @@ import { AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { SearchModal } from '../SearchModal'
 import CommandPalette from '../CommandPalette/CommandPalette'
+import DialogModal from './DialogModal'
+import MasterChatOverlay from './MasterChatOverlay'
 
 export default function AppShell() {
     const [searchOpen, setSearchOpen] = useState(false)
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
 
     // Phase 1A integration: Single writer lock
-    const isReadOnly = useProjectLock(activeProjectId || undefined)
+    const isReadOnly = useProjectLock(activeNovelId || undefined)
 
     return (
         <div className="app-shell">
@@ -32,6 +34,8 @@ export default function AppShell() {
                 <SearchModal onClose={() => setSearchOpen(false)} />
             )}
             <CommandPalette />
+            <DialogModal />
+            <MasterChatOverlay />
         </div>
     )
 }

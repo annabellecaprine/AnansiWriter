@@ -4,6 +4,7 @@ import { AIService } from '../../services/AIService'
 import { PromptService } from '../../services/PromptService'
 import { db } from '../../db/database'
 import { Ghost, Play, Check, X, Key, Settings as SettingsIcon } from 'lucide-react'
+import { confirmAction, confirmAlert } from '../../store/dialogStore'
 
 // Simple helper to isolate HTML text representation for Diff logic
 function extractTextFromJson(node: any): string {
@@ -16,7 +17,7 @@ function extractTextFromJson(node: any): string {
 }
 
 export default function AIWorkshop() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
 
     // Configurations
     const [openRouterKey, setOpenRouterKey] = useState('')
@@ -38,12 +39,12 @@ export default function AIWorkshop() {
     const [originalContentSpan, setOriginalContentSpan] = useState<string>('')
 
     useEffect(() => {
-        if (!activeProjectId) return
-        PromptService.getPrompts(activeProjectId).then(p => {
+        if (!activeNovelId) return
+        PromptService.getPrompts(activeNovelId).then(p => {
             setPrompts(p)
             if (p.length > 0) setSelectedPromptId(p[0].id)
         })
-        db.scenes.where({ projectId: activeProjectId }).toArray().then(s => {
+        db.scenes.where({ novelId: activeNovelId }).toArray().then(s => {
             setScenes(s)
             if (s.length > 0) setSelectedSceneId(s[0].id)
         })
@@ -53,9 +54,9 @@ export default function AIWorkshop() {
         AIService.getApiKey('chutes').then(key => { if (key) setChutesKey(key) })
         db.appSettings.get('baseUrl_openai-compatible').then(url => { if (url) setLocalEndpoint(url.value) })
 
-    }, [activeProjectId])
+    }, [activeNovelId])
 
-    const handleSaveKey = () => {
+    const handleSaveKey = async () => {
         if (provider === 'openrouter') {
             AIService.setApiKey('openrouter', openRouterKey)
         } else if (provider === 'chutes') {
@@ -69,11 +70,20 @@ export default function AIWorkshop() {
                 updatedAt: Date.now()
             })
         }
-        alert(`Configuration secured gracefully in System local settings for ${provider}.`)
+        await confirmAlert({
+            title: 'Configuration Saved',
+            message: `Configuration secured gracefully in system local settings for ${provider}.`
+        })
     }
 
     const handleDeleteKey = async () => {
-        if (confirm(`Remove the local API configuration for ${provider}?`)) {
+        const confirmed = await confirmAction({
+            title: 'Delete Key Configuration',
+            message: `Remove the local API configuration for ${provider}?`,
+            isDestructive: true,
+            confirmLabel: 'Remove'
+        })
+        if (confirmed) {
             if (provider === 'openai-compatible') {
                 await db.appSettings.delete(`baseUrl_openai-compatible`)
                 setLocalEndpoint('http://localhost:1234/v1')
@@ -87,18 +97,32 @@ export default function AIWorkshop() {
 
     const handleTestKey = async () => {
         const currentKey = provider === 'openrouter' ? openRouterKey : provider === 'chutes' ? chutesKey : 'not_required'
-        if (!currentKey && provider !== 'openai-compatible') return alert("Must supply a key to run network validation.")
+        if (!currentKey && provider !== 'openai-compatible') {
+            await confirmAlert({
+                title: 'Validation Error',
+                message: 'Must supply a key to run network validation.',
+                isDestructive: true
+            })
+            return
+        }
         try {
             // Dispatch a tiny minimal payload
-            await AIService.generate(activeProjectId!, "Connection validation", "Ack", model, provider, "test-connection")
-            alert("Validation successful: Key resolves on designated endpoint securely.")
+            await AIService.generate(activeNovelId!, "Connection validation", "Ack", model, provider, "test-connection")
+            await confirmAlert({
+                title: 'Validation Successful',
+                message: 'Validation successful: Key resolves on designated endpoint securely.'
+            })
         } catch (e: any) {
-            alert(`Validation failed: ${e.message}`)
+            await confirmAlert({
+                title: 'Validation Failed',
+                message: `Validation failed: ${e.message}`,
+                isDestructive: true
+            })
         }
     }
 
     const handleGenerate = async () => {
-        if (!activeProjectId || !selectedPromptId || !selectedSceneId) return
+        if (!activeNovelId || !selectedPromptId || !selectedSceneId) return
         setIsLoading(true)
         setError('')
         setGeneratedDiff(null)
@@ -116,7 +140,7 @@ export default function AIWorkshop() {
             // Compile template
             const compiledPrompt = p.userTemplate.replace(/\{\{\s*content\s*\}\}/gi, contentStr)
 
-            const responseText = await AIService.generate(activeProjectId, p.systemInstruction, compiledPrompt, model, provider, s.id)
+            const responseText = await AIService.generate(activeNovelId, p.systemInstruction, compiledPrompt, model, provider, s.id)
             setGeneratedDiff(responseText)
         } catch (err: any) {
             setError(err.message)
@@ -138,14 +162,21 @@ export default function AIWorkshop() {
                 },
                 updatedAt: Date.now()
             })
-            alert('Diff correctly applied to Manuscript index.')
+            await confirmAlert({
+                title: 'Diff Applied',
+                message: 'Diff correctly applied to Manuscript index.'
+            })
             setGeneratedDiff(null)
         } catch (e: any) {
-            alert('Write failed: ' + e.message)
+            await confirmAlert({
+                title: 'Write Failed',
+                message: 'Write failed: ' + e.message,
+                isDestructive: true
+            })
         }
     }
 
-    if (!activeProjectId) {
+    if (!activeNovelId) {
         return (
             <div className="workspace-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <p style={{ color: 'var(--color-text-muted)' }}>Please open a project to access the AI Staging facility.</p>

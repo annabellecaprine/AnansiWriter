@@ -2,6 +2,7 @@ export interface AIRequestPayload {
     modelId: string;
     systemInstruction: string;
     userPrompt: string;
+    messages?: { role: 'system' | 'user' | 'assistant', content: string }[];
     temperature?: number;
     maxTokens?: number;
     baseUrl?: string;

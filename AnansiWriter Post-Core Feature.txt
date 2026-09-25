@@ -1,0 +1,950 @@
+AnansiWriter: Post-Core Feature & Polish Brief
+AnansiWriter has completed its major architectural refactors.
+The current canonical hierarchy is:
+Library
+├── Series
+│   └── Novel
+│       └── Act? → Chapter → Scene
+└── Standalone Novel
+    └── Act? → Chapter → Scene
+
+The primary Novel workspaces are:
+Plan
+Write
+Codex
+Assets
+Prompts
+Staging
+Review
+
+Plan and Write operate on the same underlying manuscript hierarchy.
+Codex, Prompts, Assets, AI providers, Context Engine, and basic LLM testing already exist.
+Important instruction
+Do not perform another architectural rewrite.
+Do not reintroduce:
+- Project as an author-facing concept
+- duplicate Planning/Writing Scene models
+- hard-coded AI features when a saved Prompt can perform the operation
+- separate asset storage systems
+- parallel context systems
+- browser-native dialogs
+This pass is about turning the working application into a polished daily-use writing environment.
+Priority 1: Real-World Novel Workflow Polish
+1. Novel identity in Plan and Write
+The current Novel title should be clearly visible in the active Novel workspace.
+The author should always know:
+Series
+Novel
+Act
+Chapter
+Scene
+
+without consuming excessive screen space.
+Example:
+The Bracken Ridge Chronicles
+Between Shadows and Silence
+
+Act 1: Arrival and First Impressions
+
+2. Planning scene cards
+Current Kanban/Storyboard Scene cards already support:
+- Scene title
+- summary
+- word count
+- drag/drop
+- editing
+- jumping to Write
+Enhance them with compact optional metadata.
+Suggested card:
+Scene 3                           919 w
+
+Penny enters The Lantern and Leaf and
+meets the woman behind the counter...
+
+[Penny] [Lantern & Leaf] [Draft]
+
+Useful chips:
+- POV Character
+- Location
+- Status
+- selected Codex entries
+- custom labels where useful
+Do not overload cards.
+The board is for structural comprehension.
+3. Scene summary behavior
+Avoid tiny internal scrollbars where possible.
+Prefer:
+- fixed/card-friendly summary height
+- line clamping or gentle fade
+- click/edit to see complete planning content
+Full Scene planning content belongs in the Scene editor/inspector.
+Priority 2: Writing Workspace Ergonomics
+4. Persistent Scene context beside prose
+Write should keep manuscript prose dominant while making Scene intent visible.
+The contextual inspector should support something like:
+Scene 4
+999 words
+
+Summary
+Penny returns home...
+
+POV
+Penny
+
+Location
+Bracken Ridge
+
+Status
+Draft
+
+Codex
+[Penny] [Lila] [Lantern & Leaf]
+
+Also expose:
+- Scene planning scratchpad
+- target word count
+- narrative position
+- notes
+- Chapter scratchpad when useful
+The pane should remain collapsible/resizable.
+5. Scene Actions menu
+Add a contextual Scene actions menu.
+Suggested initial actions:
+Scene Actions
+
+Edit Metadata
+Set POV
+Add Subtitle
+
+Organize
+  Labels
+  Codex Links
+  Move Scene
+  Duplicate Scene
+
+AI
+  Run Prompt >
+  Summarize Scene
+  Detect Codex Entries
+  Continue Writing
+
+History
+  Versions / Revisions
+  Compare Versions
+
+Utilities
+  Copy Text
+  Export Scene
+  Archive Scene
+
+Move to Trash
+
+AI commands should use the existing Prompt system wherever possible.
+Do not implement one-off provider calls for these actions.
+6. Chapter Actions menu
+Suggested:
+Chapter Actions
+
+Add Chapter Before
+Add Chapter After
+Add Scene
+Add Archived Scene
+
+Organize
+Move / Reorder
+
+AI
+Run Prompt >
+
+Utilities
+Copy Text
+Export Chapter
+
+Archive Chapter
+Move to Trash
+
+Respect existing Trash semantics.
+Priority 3: Slash Commands and Contextual AI
+7. / command palette inside the editor
+Typing / should open a cursor-context command palette.
+Conceptually:
+AI
+  Continue Scene
+  Scene Beat
+  Rewrite Selection
+  Dialogue Check
+  Run Prompt...
+
+Codex
+  Mention Entry
+  Link Entry
+  Create Codex Entry
+
+Structure
+  Scene Break
+  New Scene
+
+Formatting
+  Heading
+  Quote
+  Horizontal Rule
+
+Notes
+  Add Note
+
+The AI section should populate from saved compatible Prompts.
+Example:
+A saved Prompt requiring:
+Current Selection
+Current Scene
+Relevant Characters
+
+should appear when those inputs can be resolved.
+Do not hard-code each AI operation separately.
+8. Relationship to Ctrl+K
+Use the same underlying command registry where practical.
+/
+→ local cursor/editor commands
+
+Ctrl+K
+→ application-wide commands, navigation, and Prompt invocation
+
+Priority 4: General AI Chat
+9. Persistent Chat system
+Add a Novel-level AI Chat system inspired by the useful interaction pattern of mature writing tools.
+Chat is different from:
+Slash Command
+→ immediate local action
+
+Saved Prompt
+→ repeatable configured operation
+
+Chat
+→ exploratory ongoing conversation
+
+Chat should open beside the active workspace where possible.
+It should not require leaving the Novel.
+10. Chat threads
+Support persistent threads.
+Suggested organization:
+Chats
+├── Pinned
+├── Recent
+└── Archived
+
+Each thread stores:
+- title
+- messages
+- model used
+- selected context
+- Prompt if applicable
+- creation date
+- modified date
+- execution/history snapshots
+Allow:
+- rename
+- pin
+- archive
+- delete/Trash where appropriate
+- search threads
+11. Explicit context selection
+The core Chat control should be:
++ Context
+
+Context picker should support:
+Manuscript
+Full Novel
+Current Act
+Current Chapter
+Current Scene
+Selected Scenes
+Current Selection
+
+Planning
+Full Outline
+Current Chapter Plan
+Current Scene Plan
+
+Codex
+Relevant Entries
+Characters
+Locations
+Organizations
+Items
+Lore
+Choose Entries...
+
+Research
+Research Notes
+External References
+
+Other
+Pinned Context
+Series Context
+
+Show selected context visibly:
+[Current Scene]
+[Penny]
+[Lila]
+[Lantern & Leaf]
+[Chapter Plan]
+
+12. Context cost visibility
+Show:
+Estimated Context: 18.4k tokens
+Model Context: 128k
+
+Use the existing Context Engine.
+Do not silently send the entire Novel.
+Allow Context Preview before expensive requests.
+13. Workspace-aware Chat
+Chat should be accessible from:
+- Plan
+- Write
+- Codex
+- Review
+- possibly Staging
+It may inherit the active Scene/Chapter/Entry as suggested context but must not silently force that context into every request.
+Priority 5: NovelCrafter ZIP Importer
+This is a high-value migration tool.
+Place it under:
+Settings
+→ Import / Migration
+→ Import NovelCrafter ZIP
+
+The user should upload the original NovelCrafter ZIP directly.
+Do not require manual extraction.
+14. ZIP structure already established
+NovelCrafter exports include:
+novel.md
+codex.html
+
+characters/
+locations/
+lore/
+objects/
+other/
+
+Individual Codex entries contain:
+entry.md
+metadata.json
+notes.md?  optional
+
+Use the individual Codex folders as the primary Codex import source.
+codex.html may be retained as fallback/reference.
+15. Manuscript parsing
+Parse:
+# Novel Title
+## Act
+### Chapter
+
+* * *
+
+Where repeated:
+* * *
+
+marks Scene boundaries.
+Convert into:
+Novel
+└── Act
+    └── Chapter
+        └── Scene
+
+Do not flatten the manuscript.
+16. Codex parsing
+Map source folders:
+characters → Character
+locations  → Location
+lore       → Lore / Concept
+objects    → Item / Object
+other      → Story Guide / Other / Unclassified
+
+Parse entry.md frontmatter where present:
+type
+name
+color
+aliases
+tags
+alwaysIncludeInContext
+doNotTrack
+noAutoInclude
+fields
+
+Import Markdown body as rich Codex content.
+17. Metadata parsing
+Parse metadata.json including:
+id
+attributes
+relationships.nestedEntries
+links.externalReferences
+
+Preserve original NovelCrafter ID in the import mapping for reference resolution.
+Do not use the NovelCrafter ID as AnansiWriter identity unless convenient.
+18. Notes
+If:
+notes.md
+
+exists, import it into the new Research / Notes area.
+Do not merge private author notes into canonical Codex description.
+19. Duplicate handling
+NovelCrafter exports may contain accidental duplicate entries.
+If:
+- normalized name matches
+- type matches
+- entry.md content is identical
+- metadata payload is identical except source ID
+flag as exact duplicate.
+Allow:
+Merge Exact Duplicates
+Keep Both
+Review
+
+When merged, map all source IDs to the same AnansiWriter Codex UUID.
+20. Intermediate ImportPackage
+Do not write directly to Dexie while parsing.
+Use:
+NovelCrafter ZIP
+       ↓
+NovelCrafterParser
+       ↓
+AnansiWriter ImportPackage
+       ↓
+Validation / Preview
+       ↓
+Transactional Import
+
+Conceptually:
+ImportPackage {
+  novel
+  acts[]
+  chapters[]
+  scenes[]
+  codexEntries[]
+  notes[]
+  warnings[]
+  duplicates[]
+  sourceIdMap
+}
+
+This architecture should later support:
+- Scrivener
+- Markdown
+- DOCX
+- other imports
+21. Import preview
+Before database mutation, show something like:
+NovelCrafter Import
+
+Between Shadows and Silence
+
+1 Act
+33 Chapters
+118 Scenes
+
+Codex
+21 Characters
+10 Locations
+9 Lore
+4 Objects
+11 Other
+
+4 Notes files
+2 exact duplicates detected
+3 warnings
+
+Import into:
+The Bracken Ridge Chronicles
+
+Codex Scope:
+Series
+
+[Review] [Import]
+
+Import transactionally.
+Rollback entirely if import fails.
+Priority 6: Codex Refinements
+22. Research tab
+Add:
+Research
+├── Notes
+└── External References
+
+Research is separate from canonical Details.
+23. Research Notes
+Research Notes are:
+- private author material
+- not automatically Canon
+- not automatically sent to AI
+- not manuscript occurrences
+Examples:
+- unresolved questions
+- historical research
+- technical notes
+- reminders
+- discarded possibilities
+Prompts may explicitly request Research Notes as context.
+24. External References
+Support richer external reference records.
+Fields may include:
+URL
+Display Title
+Site / Source
+Author
+Description
+Author Notes
+Accessed Date
+Linked local Asset/PDF
+
+Imported NovelCrafter externalReferences should map here.
+25. Codex AI/context preferences
+Codex entries should support lightweight context behavior.
+Map NovelCrafter concepts where useful:
+Always Include in Context
+Exclude from Automatic Context
+Do Not Track Occurrences
+
+Use AnansiWriter terminology and semantics.
+Place these under something like:
+Advanced
+or
+AI / Context
+
+Do not clutter Overview.
+26. Story Guides
+Some Codex records describe how the story should be written rather than entities in the story.
+Add a flexible template:
+Story Guide
+
+Possible subtype/category:
+Prose Style
+Genre
+Tone
+Theme
+Conventions
+Other
+
+Examples already present in NovelCrafter exports:
+- Prose Style Guide
+- Story Genre
+Story Guides can be Series-scoped or Novel-scoped.
+27. Prompt integration with Story Guides
+Prompts may request:
+Prose Style Guide
+Story Genre
+Tone Guide
+
+Example:
+Continue Scene
+
+Inputs:
+Current Scene
+Relevant Codex
+Prose Style Guide
+Story Genre
+
+Do not duplicate these instructions across every Prompt.
+Priority 7: Scene Metadata, Labels, and Prose Defaults
+28. Scene Status
+Provide a first-class Scene status rather than relying only on free-form labels.
+Suggested:
+Idea
+Planned
+Draft
+Revised
+Edited
+Final
+
+Exact terminology can be refined.
+29. Custom labels
+Also support lightweight user-defined labels.
+Examples:
+Subplot: Romance
+Needs Research
+Foreshadowing
+Mystery Thread
+Rewrite
+
+Allow:
+- color
+- grouping/category
+- ordering
+- quick assignment from Plan/Write
+Do not use labels to replace actual timeline or status data.
+30. Narrative time markers
+The mature tool reference uses labels such as:
+Past
+Flashback
+Present
+Flashforward
+Future
+
+AnansiWriter already has richer timeline/narrative-position architecture.
+Expose lightweight markers if useful, but connect them to real timeline semantics where appropriate.
+31. Novel prose defaults
+Add Novel-level prose metadata:
+Language
+Default Tense
+Default POV Type
+Default POV Character optional
+
+Example:
+Language
+US English
+
+Tense
+Past
+
+POV
+Third Person Limited
+
+32. Scene prose overrides
+Allow Scene-level overrides:
+POV Character
+POV Type
+Tense
+
+Use Codex Character references for POV Character.
+Do not store POV only as arbitrary text.
+Priority 8: Versions, Archive, and Scene Utilities
+33. Revision history UI
+Scene revisions already exist.
+Expose them usefully:
+Versions / History
+
+Support:
+- timestamps
+- preview
+- compare
+- restore
+- word-count change where useful
+Do not merely store revisions invisibly.
+34. Archive
+Archive is distinct from Trash.
+Use case:
+This Scene was cut from the manuscript but should remain available.
+
+Support:
+Archive Scene
+Restore Scene
+Add Scene from Archive
+
+Archived Scenes:
+- retain UUID
+- retain prose
+- retain planning
+- retain metadata
+- are excluded from active manuscript ordering/word totals unless configured otherwise
+Trash remains for deletion.
+35. Copy / export Scene
+Useful utility actions:
+Copy Text
+Export Scene
+Export Chapter
+
+Keep these contextual and lightweight.
+Priority 9: Export System
+NovelCrafter’s export workflow is a strong interaction reference.
+AnansiWriter should eventually have a dedicated:
+Export Manuscript
+
+dialog.
+36. Selective hierarchy export
+Allow selecting:
+Novel
+Act
+Chapter
+Scene
+
+through a hierarchical checkbox tree.
+Example:
+☑ Act 1
+   ☑ Chapter 1
+      ☑ Scene 1
+      ☑ Scene 2
+   ☐ Chapter 2
+
+Support Toggle All.
+37. Export formats
+Initial:
+DOCX
+Markdown
+HTML
+
+Phase-later:
+EPUB
+PDF
+
+38. Export options
+Support:
+Include prose
+Include summaries
+Include Act titles
+Include Scene subtitles
+
+Potential later:
+Include notes
+Include selected metadata
+
+39. Scene divider options
+Allow export divider selection without altering Scene structure.
+Examples:
+* * *
+***
+#
+Blank line
+Custom
+
+40. Distinguish manuscript export from project backup
+Use separate concepts:
+EXPORT MANUSCRIPT
+DOCX / MD / HTML / EPUB / PDF
+
+versus:
+BACKUP / TRANSFER PROJECT
+.storyproject
+
+Optional later:
+RESEARCH ARCHIVE
+ZIP
+
+containing human-readable exports of manuscript, Codex, notes, assets, planning, etc.
+Priority 10: Review Analytics
+Review should primarily show objective manuscript data and patterns.
+Do not make it an AI judgment dashboard.
+AI analysis should remain optional through saved Prompts.
+41. Overview metrics
+Show:
+Total word count
+Act count
+Chapter count
+Scene count
+Average Scene length
+Average Chapter length
+
+Potentially:
+Longest Scene
+Shortest Scene
+
+42. Word-count distribution
+Charts for:
+Scenes
+Chapters
+Acts
+
+Show average line.
+Make outliers visually obvious without labeling them inherently good/bad.
+43. Character density
+Provide:
+Characters per Scene
+Average characters per Scene
+
+Potential later analytics:
+POV Character distribution
+Selected Character appearances
+Character combinations
+
+44. Appearance heatmap
+This is a major Review visualization.
+Rows:
+Codex Entries
+
+Columns:
+Scenes
+
+Cell intensity:
+confirmed occurrence count
+
+Support filters:
+All Codex
+Characters
+Locations
+Organizations
+Items
+Lore
+Custom
+
+45. Occurrence confidence
+AnansiWriter already distinguishes:
+Explicit reference
+Confirmed heuristic
+Unresolved heuristic
+
+Heatmap filters should allow:
+Confirmed Only
+Candidates
+Both
+
+Do not silently treat all textual matches as equivalent.
+46. Manuscript vs narrative order
+Heatmap and relevant Review views should support:
+Manuscript Order
+Narrative Chronology
+
+This is particularly useful for flashbacks and nonlinear books.
+47. Review + AI
+Allow optional saved Prompt actions such as:
+Pacing Review
+Character Balance Analysis
+Continuity Check
+Setup / Payoff Review
+Repetition Check
+
+Those consume Review/manuscript data but remain separate from objective charts.
+Priority 11: Codex Quick-Linking
+48. Quick Codex picker from Scene
+From Plan or Write, allow:
++ Codex
+
+to open searchable entries.
+Search by:
+- name
+- alias
+- type
+- tag
+Allow rapid linking without opening the full Codex workspace.
+49. Detect Codex entries
+Provide a saved/built-in Prompt or scanner action for:
+Detect Characters / Codex Entries
+
+Results should be suggestions.
+Do not silently mutate links.
+Priority 12: Library / Series / Novel Polish
+The new schema is correct.
+Now enrich presentation.
+50. Series metadata
+Display/edit:
+Title
+Description
+Cover
+Tags / Genres
+Status
+Novel count
+Combined word count
+Last edited
+
+51. Novel metadata
+Display/edit:
+Title
+Subtitle
+Author / Pen Name
+Cover
+Summary / Blurb
+Language
+Status
+Tags / Genres
+Target Word Count
+Word Count
+Chapter Count
+Scene Count
+Last Edited
+
+52. Library cards
+Series card:
+Cover
+Title
+Novel count
+Combined words
+Status
+Last edited
+
+Novel card:
+Cover
+Title
+Author
+Series position
+Status
+Word count
+Last edited
+
+53. Search and sort
+Library search:
+- title
+- author
+- Series
+- tags
+- genre
+- summary where useful
+Sort:
+Last Edited
+Title
+Created
+Status
+Word Count
+Series Order
+
+Priority / Implementation Order
+Claude should not try to implement everything simultaneously.
+Recommended sequence:
+Phase A: Daily Writing Ergonomics
+1. Novel title/context display
+2. Scene summary/metadata Inspector
+3. Scene/Chapter Actions menus
+4. / command palette
+5. POV/status/labels
+6. revision history UI
+7. archive scenes
+Phase B: AI Interaction
+8. persistent Chat panel
+9. Chat threads
+10. explicit Context picker
+11. context chips/token estimate
+12. saved Prompt integration throughout Write/Plan
+Phase C: Codex Refinement
+13. Research Notes
+14. External References
+15. AI/context flags
+16. Story Guide template
+17. Story Guide Prompt inputs
+Phase D: Migration
+18. NovelCrafter ZIP importer
+19. duplicate handling
+20. import preview
+21. transactional import
+Phase E: Review
+22. word-count analytics
+23. character-density analytics
+24. occurrence heatmap
+25. filters
+26. manuscript/narrative chronology toggle
+Phase F: Export
+27. selective manuscript tree
+28. DOCX/Markdown/HTML
+29. export options
+30. divider configuration
+31. later EPUB/PDF
+Phase G: Library Beautification
+32. covers
+33. metadata
+34. richer cards
+35. search/sort
+36. Series presentation
+Acceptance Philosophy
+For this stage, completion means:
+An author can actually use the feature comfortably during real work.
+
+Not merely:
+- schema exists
+- component renders
+- button exists
+- backend function exists
+Each feature must be manually usable end-to-end.
+Final Product Goal
+The desired AnansiWriter workflow is:
+Open Library
+        ↓
+Choose Series / Novel
+        ↓
+Plan story structure
+        ↕
+Write manuscript
+        ↕
+Inspect Codex / Research / Assets
+        ↕
+Invoke saved Prompts or Chat contextually
+        ↕
+Review objective story analytics
+        ↓
+Export manuscript
+
+without requiring the author to mentally stitch together separate tools.
+The application should feel like one novel with many useful lenses, not a collection of databases and AI utilities.

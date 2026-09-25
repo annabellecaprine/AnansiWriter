@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -6,40 +6,57 @@ import { InternalLink } from '../../components/editor/extensions/InternalLink'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { WritingService } from '../../services/WritingService'
 import { db } from '../../db/database'
-import SceneInspector from './SceneInspector'
+import ContextInspector from './ContextInspector'
 import MentionAutocomplete from '../../components/editor/MentionAutocomplete'
+import SlashCommandMenu from '../../components/editor/SlashCommandMenu'
+import { confirmAction } from '../../store/dialogStore'
+import NovelBreadcrumb from '../../components/shared/NovelBreadcrumb'
+import SceneActionsMenu from '../../components/shared/SceneActionsMenu'
 import {
     Bold, Italic, Strikethrough, Code, Heading1, Heading2, Heading3,
     List, ListOrdered, Quote, Minus, Undo, Redo, Eye, EyeOff,
-    PanelRight, AtSign, Save
+    PanelRight, PanelLeft, AtSign, Save, MoreHorizontal
 } from 'lucide-react'
 
 // Debounce timeouts
 let autosaveTimeout: any = null
 let revisionTimeout: any = null
 
+// Define extensions via factory to avoid React StrictMode duplicate warnings
+const getEditorExtensions = () => [
+    StarterKit.configure({
+        heading: { levels: [1, 2, 3] }
+    }),
+    Underline,
+    InternalLink
+]
+
 export default function SceneEditor() {
-    const { activeSceneId, activeProjectId } = useWorkspaceStore()
+    const { activeSceneId, activeNovelId, isRightPaneOpen, toggleRightPane, isLeftPaneOpen, toggleLeftPane } = useWorkspaceStore()
     const [sceneTitle, setSceneTitle] = useState('')
     const [wordCount, setWordCount] = useState(0)
     const [targetWordCount, setTargetWordCount] = useState(1000)
-    const [isInspectorOpen, setIsInspectorOpen] = useState(false)
     const [isFocusMode, setIsFocusMode] = useState(false)
     const [isAutosaving, setIsAutosaving] = useState(false)
+    const [showActionsMenu, setShowActionsMenu] = useState(false)
+    const [inspectorTab, setInspectorTab] = useState<'backlinks' | 'beats' | 'revisions'>('beats')
+    const actionsButtonRef = useRef<HTMLButtonElement>(null)
 
-    // Mention Autocomplete Popover state
+    // Mention & Slash Command Popover states
     const [showMentionMenu, setShowMentionMenu] = useState(false)
     const [mentionQuery, setMentionQuery] = useState('')
+    const [mentionCoords, setMentionCoords] = useState<{ top: number, left: number }>({ top: 0, left: 0 })
+
+    const [showSlashMenu, setShowSlashMenu] = useState(false)
+    const [slashQuery, setSlashQuery] = useState('')
+
+    // Entity Detector Heuristics
+    const [showDetectorModal, setShowDetectorModal] = useState(false)
+    const [detectedMatches, setDetectedMatches] = useState<{ entry: any, count: number }[]>([])
 
     // Initialize TipTap Editor
     const editor = useEditor({
-        extensions: [
-            StarterKit.configure({
-                heading: { levels: [1, 2, 3] }
-            }),
-            Underline,
-            InternalLink
-        ],
+        extensions: getEditorExtensions(),
         content: '<p>Loading scene content...</p>',
         onUpdate: ({ editor }) => {
             if (!activeSceneId) return
@@ -49,15 +66,27 @@ export default function SceneEditor() {
             const words = text.split(/\s+/).filter(Boolean).length
             setWordCount(words)
 
-            // Detect @ mention typing
+            // Detect '+' codex quick-reference typing
             const { selection } = editor.state
-            const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 20), selection.from, ' ')
-            const match = textBefore.match(/@([a-zA-Z0-9_]*)$/)
+            const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 40), selection.from, ' ')
+            const match = textBefore.match(/(?:^|\s)\+([a-zA-Z0-9_\- ]{0,25})$/)
+
             if (match) {
                 setMentionQuery(match[1])
                 setShowMentionMenu(true)
+                const coords = editor.view.coordsAtPos(selection.from)
+                setMentionCoords({ top: coords.top + 20, left: coords.left })
             } else {
                 setShowMentionMenu(false)
+            }
+
+            // Detect / slash command typing
+            const slashMatch = textBefore.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/)
+            if (slashMatch && !match) {
+                setSlashQuery(slashMatch[1])
+                setShowSlashMenu(true)
+            } else {
+                setShowSlashMenu(false)
             }
 
             // 1) Debounced autosave (1.5 seconds)
@@ -71,9 +100,9 @@ export default function SceneEditor() {
             // 2) Rolling Revision Snapshot (60 seconds idle pause)
             clearTimeout(revisionTimeout)
             revisionTimeout = setTimeout(async () => {
-                const projectId = useWorkspaceStore.getState().activeProjectId
-                if (projectId) {
-                    await WritingService.createSceneRevision(activeSceneId, projectId, json, words)
+                const novelId = useWorkspaceStore.getState().activeNovelId
+                if (novelId) {
+                    await WritingService.createSceneRevision(activeSceneId, novelId, json, words)
                 }
             }, 60000)
         }
@@ -99,6 +128,12 @@ export default function SceneEditor() {
                 const text = editor.getText()
                 setWordCount(text.split(/\s+/).filter(Boolean).length)
             }
+
+            // Sync structural selection upward for ContextInspector
+            const store = useWorkspaceStore.getState()
+            if (s.chapterId && store.activeChapterId !== s.chapterId) {
+                store.setActiveChapter(s.chapterId)
+            }
         })
 
         return () => { mounted = false }
@@ -113,18 +148,93 @@ export default function SceneEditor() {
 
     const handleInsertMention = (entry: { id: string, name: string, type: string }) => {
         if (!editor) return
-        // Delete typed @ text before inserting chip node
+        // Delete typed '+' logic match before inserting chip node
         const { selection } = editor.state
-        const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 20), selection.from, ' ')
-        const match = textBefore.match(/@([a-zA-Z0-9_]*)$/)
+        const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 40), selection.from, ' ')
+        const match = textBefore.match(/(?:^|\s)\+([a-zA-Z0-9_\- ]{0,25})$/)
 
         if (match) {
-            const start = selection.from - match[0].length
+            const spacesOffset = match[0].startsWith(' ') || match[0].startsWith('\n') ? 1 : 0
+            const start = selection.from - match[0].length + spacesOffset
             editor.chain().focus().deleteRange({ from: start, to: selection.from }).run()
         }
 
         editor.chain().focus().setInternalLink({ id: entry.id, name: entry.name, type: entry.type }).run()
         setShowMentionMenu(false)
+    }
+
+    const handleInsertSlashCmd = (cmd: string) => {
+        if (!editor || !activeSceneId) return
+
+        // Delete typed slash command string
+        const { selection } = editor.state
+        const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 20), selection.from, ' ')
+        const slashMatch = textBefore.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/)
+
+        if (slashMatch) {
+            const start = selection.from - slashMatch[0].length + (slashMatch[0].startsWith(' ') || slashMatch[0].startsWith('\n') ? 1 : 0)
+            editor.chain().focus().deleteRange({ from: start, to: selection.from }).run()
+        }
+
+        if (cmd === 'clear-slash') {
+            setShowSlashMenu(false)
+            return
+        }
+
+        switch (cmd) {
+            case 'h1': editor.chain().focus().toggleHeading({ level: 1 }).run(); break;
+            case 'h2': editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+            case 'h3': editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
+            case 'scene-break': editor.chain().focus().insertContent('<p style="text-align: center;">* * *</p><p></p>').run(); break;
+            case 'hr': editor.chain().focus().setHorizontalRule().run(); break;
+            case 'quote': editor.chain().focus().toggleBlockquote().run(); break;
+        }
+        setShowSlashMenu(false)
+    }
+
+    const handleScanCodex = async () => {
+        if (!editor || !activeNovelId) return
+        const entries = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
+
+        entries.sort((a, b) => b.name.length - a.name.length) // Longer names matched first!
+
+        const docText = editor.getText()
+        const matches: { entry: any, count: number }[] = []
+
+        for (const entry of entries) {
+            const targets = [entry.name, ...(entry.aliases || [])].filter(Boolean)
+            let totalCount = 0
+            for (const t of targets) {
+                if (!t) continue;
+                // Escape regex sequences
+                const safeT = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
+                const occurrences = [...docText.matchAll(regex)]
+                if (occurrences.length > 0) totalCount += occurrences.length
+            }
+            if (totalCount > 0) {
+                matches.push({ entry, count: totalCount })
+            }
+        }
+        setDetectedMatches(matches)
+        setShowDetectorModal(true)
+    }
+
+    const handleApplyLink = (entry: any) => {
+        if (!editor) return
+        let html = editor.getHTML()
+        const targets = [entry.name, ...(entry.aliases || [])].filter(Boolean)
+
+        for (const t of targets) {
+            if (!t) continue;
+            const safeT = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            // Negative lookahead to prevent matching inside existing HTML tags/links!
+            const rx = new RegExp(`\\b(${safeT})\\b(?![^<]*>)`, 'gi')
+            html = html.replace(rx, `<span class="internal-link" data-id="${entry.id}" data-linkname="${entry.name}" data-linktype="${entry.type}">$1</span>`)
+        }
+
+        editor.commands.setContent(html)
+        setDetectedMatches(prev => prev.filter(m => m.entry.id !== entry.id))
     }
 
     if (!activeSceneId) {
@@ -140,6 +250,9 @@ export default function SceneEditor() {
     return (
         <div className="scene-editor-container" style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                {/* Novel Breadcrumb (always visible, hidden in focus mode) */}
+                {!isFocusMode && <NovelBreadcrumb />}
+
                 {/* Scene Header Bar (hidden in Focus Mode) */}
                 {!isFocusMode && (
                     <header
@@ -174,6 +287,27 @@ export default function SceneEditor() {
                             <span style={{ fontSize: '0.75rem', color: isAutosaving ? 'var(--color-primary)' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                 <Save size={12} /> {isAutosaving ? 'Saving...' : 'Saved'}
                             </span>
+                            <button
+                                ref={actionsButtonRef}
+                                className="btn"
+                                onClick={() => setShowActionsMenu(v => !v)}
+                                title="Scene Actions"
+                                style={{ padding: '0.35rem 0.5rem' }}
+                            >
+                                <MoreHorizontal size={16} />
+                            </button>
+                            {showActionsMenu && activeSceneId && (
+                                <SceneActionsMenu
+                                    sceneId={activeSceneId}
+                                    anchorRef={actionsButtonRef}
+                                    onClose={() => setShowActionsMenu(false)}
+                                    onDetectLinks={handleScanCodex}
+                                    onOpenInspector={(tab) => {
+                                        if (tab) setInspectorTab(tab)
+                                        if (!isRightPaneOpen) toggleRightPane()
+                                    }}
+                                />
+                            )}
                         </div>
 
                         {/* Word Count Progress Bar & Goal */}
@@ -200,10 +334,20 @@ export default function SceneEditor() {
                             </button>
 
                             <button
-                                className={`btn ${isInspectorOpen ? 'active' : ''}`}
-                                onClick={() => setIsInspectorOpen(!isInspectorOpen)}
-                                title="Toggle Scene Inspector Panel"
-                                aria-label="Toggle Scene Inspector"
+                                className={`btn ${isLeftPaneOpen ? 'active' : ''}`}
+                                onClick={toggleLeftPane}
+                                title="Toggle Explorer Sidebar"
+                                aria-label="Toggle Explorer"
+                                style={{ padding: '0.4rem 0.6rem' }}
+                            >
+                                <PanelLeft size={16} />
+                            </button>
+
+                            <button
+                                className={`btn ${isRightPaneOpen ? 'active' : ''}`}
+                                onClick={toggleRightPane}
+                                title="Toggle Context Inspector Panel"
+                                aria-label="Toggle Context Inspector"
                                 style={{ padding: '0.4rem 0.6rem' }}
                             >
                                 <PanelRight size={16} />
@@ -390,14 +534,56 @@ export default function SceneEditor() {
                         <EditorContent editor={editor} style={{ outline: 'none', minHeight: '650px', fontSize: '1.05rem', lineHeight: '1.8' }} />
 
                         {/* Floating Mention Autocomplete Popover */}
-                        {showMentionMenu && activeProjectId && (
-                            <div style={{ position: 'absolute', top: '100px', left: '100px' }}>
+                        {showMentionMenu && activeNovelId && (
+                            <div style={{ position: 'fixed', top: mentionCoords.top, left: mentionCoords.left, zIndex: 9999 }}>
                                 <MentionAutocomplete
-                                    projectId={activeProjectId}
+                                    novelId={activeNovelId}
                                     query={mentionQuery}
                                     onSelect={handleInsertMention}
                                     onClose={() => setShowMentionMenu(false)}
                                 />
+                            </div>
+                        )}
+
+                        {/* Floating Slash Command Popover */}
+                        {showSlashMenu && activeSceneId && (
+                            <div style={{ position: 'absolute', top: '100px', left: '150px', zIndex: 50 }}>
+                                <SlashCommandMenu
+                                    query={slashQuery}
+                                    onSelect={handleInsertSlashCmd}
+                                    onClose={() => setShowSlashMenu(false)}
+                                    sceneId={activeSceneId}
+                                />
+                            </div>
+                        )}
+
+                        {/* Detector Modal Overlay */}
+                        {showDetectorModal && (
+                            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ background: 'var(--color-surface)', padding: '2rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', width: '100%', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+                                    <h3 style={{ margin: '0 0 1rem 0' }}>Codex Detection Scanner</h3>
+                                    {detectedMatches.length === 0 ? (
+                                        <p style={{ color: 'var(--color-text-muted)' }}>No unlinked entities found matching current active Codex entries.</p>
+                                    ) : (
+                                        <>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Found the following text fragments natively matching your Codex aliases structure. Would you like to map them completely into internal links?</p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '250px', overflowY: 'auto', marginBottom: '1.5rem' }}>
+                                                {detectedMatches.map(m => (
+                                                    <div key={m.entry.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{m.entry.name}</div>
+                                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Found {m.count} instance(s)</div>
+                                                        </div>
+                                                        <button className="btn primary" onClick={() => handleApplyLink(m.entry)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}>Link All</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                                        <button className="btn" onClick={() => setShowDetectorModal(false)}>Close Scanner</button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -405,13 +591,18 @@ export default function SceneEditor() {
             </div>
 
             {/* Inspector Side-Drawer */}
-            {isInspectorOpen && (
-                <SceneInspector
+            {isRightPaneOpen && (
+                <ContextInspector
                     sceneId={activeSceneId}
                     editorContent={editor?.getJSON()}
-                    onClose={() => setIsInspectorOpen(false)}
-                    onRestoreRevision={(content) => {
-                        if (confirm("Restore this historical checkpoint? Current working draft will be updated.")) {
+                    onClose={toggleRightPane}
+                    initialTab={inspectorTab}
+                    onRestoreRevision={async (content) => {
+                        const confirmed = await confirmAction({
+                            title: 'Restore Checkpoint',
+                            message: 'Restore this historical checkpoint? Current working draft will be updated.'
+                        })
+                        if (confirmed) {
                             editor?.commands.setContent(content)
                         }
                     }}

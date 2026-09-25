@@ -5,7 +5,7 @@ import { Network } from 'lucide-react'
 
 // Simple naive forced-directed logic wrapper
 export default function RelationshipGraph() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [nodes, setNodes] = useState<{ id: string, name: string, x: number, y: number }[]>([])
     const [edges, setEdges] = useState<{ source: string, target: string, type: string }[]>([])
 
@@ -20,11 +20,11 @@ export default function RelationshipGraph() {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        if (!activeProjectId) return
+        if (!activeNovelId) return
 
         const buildGraph = async () => {
-            const entries = await db.bibleEntries.where({ projectId: activeProjectId }).toArray()
-            const relationships = await db.relationships.where({ projectId: activeProjectId }).toArray()
+            const entries = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
+            const relationships = await db.relationships.where({ novelId: activeNovelId }).toArray()
 
             const container = containerRef.current
             const width = container ? container.clientWidth : 800
@@ -85,7 +85,7 @@ export default function RelationshipGraph() {
         }
 
         buildGraph()
-    }, [activeProjectId, filterType, filterTag, filterRel, hideDisconnected, focusNodeId, hopDepth])
+    }, [activeNovelId, filterType, filterTag, filterRel, hideDisconnected, focusNodeId, hopDepth])
 
     return (
         <div className="spike-section" style={{ marginTop: '2rem' }}>

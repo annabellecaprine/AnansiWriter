@@ -4,14 +4,14 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { Check, X } from 'lucide-react'
 
 export function OccurrenceReviewQueue() {
-    const { activeProjectId } = useWorkspaceStore()
+    const { activeNovelId } = useWorkspaceStore()
     const [pending, setPending] = useState<any[]>([])
 
     const loadPending = async () => {
-        if (!activeProjectId) return
+        if (!activeNovelId) return
         // Fetch unreviewed occurrences sequentially 
         const items = await db.occurrences
-            .where({ projectId: activeProjectId })
+            .where({ novelId: activeNovelId })
             .filter(o => !o.isConfirmed && !o.isDismissed)
             .limit(20)
             .toArray()
@@ -24,7 +24,7 @@ export function OccurrenceReviewQueue() {
         // Simple polling hook interval to automatically show fresh indexing results
         const interval = setInterval(loadPending, 5000)
         return () => clearInterval(interval)
-    }, [activeProjectId])
+    }, [activeNovelId])
 
     const handleConfirm = async (id: string) => {
         await db.occurrences.update(id, { isConfirmed: true })

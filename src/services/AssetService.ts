@@ -5,12 +5,12 @@ export class AssetService {
     /**
      * Ingests a raw file as a binary Blob and optionally links it to a specific target (like a Bible Entry or Scene)
      */
-    static async uploadAsset(projectId: string, file: File, targetId?: string): Promise<string> {
+    static async uploadAsset(novelId: string, file: File, targetId?: string): Promise<string> {
         const id = uuidv4()
 
         await db.assets.add({
             id,
-            projectId,
+            novelId,
             name: file.name,
             mimeType: file.type,
             blob: file, // For Phase 2 we just directly store the File blob natively
@@ -21,7 +21,7 @@ export class AssetService {
         if (targetId) {
             await db.assetLinks.add({
                 id: uuidv4(),
-                projectId,
+                novelId,
                 assetId: id,
                 targetId,
                 targetType: 'BibleEntry',
@@ -36,8 +36,8 @@ export class AssetService {
      * Resolves all binary assets linked to a given entity.
      * Maps through AssetLinks to find native Blobs.
      */
-    static async getLinkedAssets(projectId: string, targetId: string) {
-        const links = await db.assetLinks.where({ projectId, targetId }).toArray()
+    static async getLinkedAssets(novelId: string, targetId: string) {
+        const links = await db.assetLinks.where({ novelId, targetId }).toArray()
         const assetIds = links.map(l => l.assetId)
 
         if (assetIds.length === 0) return []

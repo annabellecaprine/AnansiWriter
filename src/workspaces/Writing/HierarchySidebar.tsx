@@ -18,21 +18,23 @@ import { SortableItem } from '../../components/shared/SortableItem'
 import { db } from '../../db/database'
 import { FileText, Folder, BookOpen, Layers, Target, Plus, Trash2, Edit2 } from 'lucide-react'
 
+import { confirmAlert, confirmAction, promptInput } from '../../store/dialogStore'
+
 export default function HierarchySidebar() {
-    const { activeProjectId, activeSceneId, setActiveScene } = useWorkspaceStore()
+    const { activeNovelId, activeSceneId, setActiveScene } = useWorkspaceStore()
     const [hierarchy, setHierarchy] = useState<HierarchyNode[]>([])
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
     const [editName, setEditName] = useState('')
 
     const refreshHierarchy = () => {
-        if (activeProjectId) {
-            WritingService.getProjectHierarchy(activeProjectId).then(setHierarchy)
+        if (activeNovelId) {
+            WritingService.getProjectHierarchy(activeNovelId).then(setHierarchy)
         }
     }
 
     useEffect(() => {
         refreshHierarchy()
-    }, [activeProjectId, activeSceneId])
+    }, [activeNovelId, activeSceneId])
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -40,31 +42,50 @@ export default function HierarchySidebar() {
     )
 
     const handleCreateChapter = async () => {
-        if (!activeProjectId) return
-        const books = await db.books.where({ projectId: activeProjectId }).toArray()
+        if (!activeNovelId) return
+        const books = await db.novels.where({ novelId: activeNovelId }).toArray()
         if (books.length === 0) {
-            alert("Please create a Book first in the Project workspace.")
+            await confirmAlert({
+                title: 'Book Required',
+                message: 'Please create a Book first in the Project workspace before adding chapters.'
+            })
             return
         }
-        const name = prompt("New Chapter Name:", "New Chapter")
+        const name = await promptInput({
+            title: 'Create Chapter',
+            message: 'Enter name for the new chapter:',
+            defaultValue: 'New Chapter',
+            placeholder: 'Chapter Name'
+        })
         if (name) {
-            await WritingService.createChapter(activeProjectId, books[0].id, name)
+            await WritingService.createChapter(activeNovelId, books[0].id, name)
             refreshHierarchy()
         }
     }
 
     const handleCreateScene = async (chapterId: string) => {
-        if (!activeProjectId) return
-        const name = prompt("New Scene Name:", "New Scene")
+        if (!activeNovelId) return
+        const name = await promptInput({
+            title: 'Create Scene',
+            message: 'Enter name for the new scene:',
+            defaultValue: 'New Scene',
+            placeholder: 'Scene Title'
+        })
         if (name) {
-            const newSceneId = await WritingService.createScene(activeProjectId, chapterId, name)
+            const newSceneId = await WritingService.createScene(activeNovelId, chapterId, name)
             setActiveScene(newSceneId)
             refreshHierarchy()
         }
     }
 
     const handleDelete = async (type: 'Act' | 'Chapter' | 'Scene', id: string, name: string) => {
-        if (confirm(`Are you sure you want to delete ${type} "${name}"?`)) {
+        const confirmed = await confirmAction({
+            title: `Delete ${type}`,
+            message: `Are you sure you want to delete ${type.toLowerCase()} "${name}"? This action cannot be undone.`,
+            isDestructive: true,
+            confirmLabel: 'Delete'
+        })
+        if (confirmed) {
             await WritingService.deleteEntity(type, id)
             if (activeSceneId === id) setActiveScene('')
             refreshHierarchy()
@@ -115,7 +136,7 @@ export default function HierarchySidebar() {
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, overflow: 'hidden' }}>
                         {node.type === 'Series' && <Layers size={14} color="var(--color-primary)" />}
-                        {node.type === 'Book' && <BookOpen size={14} color="#17a2b8" />}
+                        {node.type === 'Novel' && <BookOpen size={14} color="#17a2b8" />}
                         {node.type === 'Act' && <Target size={14} color="#ffc107" />}
                         {node.type === 'Chapter' && <Folder size={14} color="#fd7e14" />}
                         {node.type === 'Scene' && <FileText size={14} color="var(--color-text)" />}

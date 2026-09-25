@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { confirmAlert } from '../store/dialogStore'
 
 /* ============================================================
    Phase 0 — CORS Spike & Routing Validation
@@ -37,7 +38,11 @@ export default function Phase0Spike() {
 
     async function runChutesTest() {
         if (!apiKey.trim()) {
-            alert('Please enter a Chutes API key first.')
+            await confirmAlert({
+                title: 'Key Required',
+                message: 'Please enter a Chutes API key first.',
+                isDestructive: true
+            })
             return
         }
         setChutes({ status: 'running', responseText: 'Sending request…', corsError: false })

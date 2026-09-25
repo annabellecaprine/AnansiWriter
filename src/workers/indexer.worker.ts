@@ -9,6 +9,19 @@ function extractTextFromJson(node: any): string {
     return ''
 }
 
+function extractExplicitLinks(node: any, result: { id: string, name: string }[]) {
+    if (!node) return
+    if (node.type === 'internalLink' && node.attrs?.id) {
+        result.push({ id: node.attrs.id, name: node.attrs.name || 'Explicit Link' })
+    }
+    if (Array.isArray(node)) {
+        node.forEach(n => extractExplicitLinks(n, result))
+    }
+    if (node.content) {
+        extractExplicitLinks(node.content, result)
+    }
+}
+
 self.onmessage = async (e: MessageEvent) => {
     const { action, projectId } = e.data
 
@@ -32,15 +45,42 @@ self.onmessage = async (e: MessageEvent) => {
                 await db.occurrences.bulkDelete(oldOccurrences as string[])
             }
 
-            const occurrencesToInsert = []
+            const occurrencesToInsert: any[] = []
+            let explicitCount = 0
+            let heuristicCount = 0
 
             for (const scene of scenes) {
                 if (!scene.content) continue
 
-                // Deep extraction of ProseMirror JSON model bounds
-                const rawText = extractTextFromJson(scene.content)
+                // 1. Extract explicit internal links
+                const explicitLinks: { id: string, name: string }[] = []
+                extractExplicitLinks(scene.content, explicitLinks)
 
+                const seenExplicitIds = new Set<string>()
+
+                for (const link of explicitLinks) {
+                    occurrencesToInsert.push({
+                        id: crypto.randomUUID(),
+                        projectId,
+                        entryId: link.id,
+                        sceneId: scene.id,
+                        textPreview: `Explicit Reference: ${link.name}`,
+                        keywordOrAlias: link.name,
+                        isConfirmed: true,
+                        isDismissed: false,
+                        confidence: 1.0,
+                        createdAt: Date.now()
+                    })
+                    explicitCount++
+                    seenExplicitIds.add(link.id)
+                }
+
+                // 2. Extract heuristic matches
+                const rawText = extractTextFromJson(scene.content)
                 for (const entity of searchEntities) {
+                    // Skip heuristics if this entity already explicitly addressed in this scene
+                    if (seenExplicitIds.has(entity.id)) continue
+
                     for (const term of entity.terms) {
                         if (term.length < 3) continue // prevent trivial bindings
 
@@ -60,9 +100,10 @@ self.onmessage = async (e: MessageEvent) => {
                                 keywordOrAlias: term,
                                 isConfirmed: false,
                                 isDismissed: false,
-                                confidence: 1.0,
+                                confidence: 0.8,
                                 createdAt: Date.now()
                             })
+                            heuristicCount++
                         }
                     }
                 }
@@ -72,7 +113,7 @@ self.onmessage = async (e: MessageEvent) => {
                 await db.occurrences.bulkAdd(occurrencesToInsert)
             }
 
-            self.postMessage({ status: 'DONE', count: occurrencesToInsert.length })
+            self.postMessage({ status: 'DONE', count: occurrencesToInsert.length, explicitCount, heuristicCount })
         } catch (error: any) {
             self.postMessage({ status: 'ERROR', error: error.message })
         }
