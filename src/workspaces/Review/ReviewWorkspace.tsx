@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, ReferenceLine } from 'recharts'
 import { FileText, Users, FileLineChart, AlertTriangle } from 'lucide-react'
 import BibleHeatmap from './BibleHeatmap'
 import RelationshipGraph from './RelationshipGraph'
@@ -28,7 +28,10 @@ export default function ReviewWorkspace() {
     const [hierarchyCounts, setHierarchyCounts] = useState<{ books: any[], acts: any[], chapters: any[], scenes: any[] }>({ books: [], acts: [], chapters: [], scenes: [] })
     const [viewLevel, setViewLevel] = useState<'Book' | 'Act' | 'Chapter' | 'Scene'>('Scene')
     const [characterDistribution, setCharacterDistribution] = useState<any[]>([])
+    const [sceneCharacterCounts, setSceneCharacterCounts] = useState<any[]>([])
+    const [averageChars, setAverageChars] = useState(0)
     const [totalWords, setTotalWords] = useState(0)
+    const [averageWordCount, setAverageWordCount] = useState(0)
     const [dialogueDistribution, setDialogueDistribution] = useState<any[]>([])
     const [dialogueTotal, setDialogueTotal] = useState(0)
     const [contradictions, setContradictions] = useState<any[]>([])
@@ -109,6 +112,24 @@ export default function ReviewWorkspace() {
             })).sort((a, b) => b.value - a.value).slice(0, 10)
 
             setCharacterDistribution(pieData)
+
+            const charCountArray = sceneDataRaw.map(pack => {
+                let charCount = 0
+                const text = pack.text
+                charEntriesSorted.forEach(ce => {
+                    if (ce.type === 'Character') {
+                        const safeT = ce.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
+                        if (regex.test(text)) {
+                            charCount++
+                        }
+                    }
+                })
+                return { name: pack.scene.name, chars: charCount }
+            })
+            setSceneCharacterCounts(charCountArray)
+            setAverageChars(charCountArray.length > 0 ? Math.round(charCountArray.reduce((acc, c) => acc + c.chars, 0) / charCountArray.length) : 0)
+            setAverageWordCount(sceneData.length > 0 ? Math.round(total / sceneData.length) : 0)
 
             // Dialogue Extraction (Heuristic vs Explicit)
             const dialogueCounts: Record<string, number> = {}
@@ -276,11 +297,35 @@ export default function ReviewWorkspace() {
                         {hierarchyCounts.scenes.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={viewLevel === 'Book' ? hierarchyCounts.books : viewLevel === 'Act' ? hierarchyCounts.acts : viewLevel === 'Chapter' ? hierarchyCounts.chapters : hierarchyCounts.scenes}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={true} opacity={0.5} />
                                     <XAxis dataKey="name" tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
                                     <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
                                     <Tooltip cursor={{ fill: 'var(--color-surface-hover)' }} contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px' }} />
+                                    {viewLevel === 'Scene' && (
+                                        <ReferenceLine y={averageWordCount} stroke="var(--color-warning)" strokeDasharray="3 3" label={{ position: 'insideTopRight', value: `Average (${averageWordCount})`, fill: 'var(--color-warning)', fontSize: 12 }} />
+                                    )}
                                     <Bar dataKey="words" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
                                 </BarChart>
+                            </ResponsiveContainer>
+                        ) : <div style={{ color: 'var(--color-text-muted)' }}>No scenes found.</div>}
+                    </div>
+                </div>
+
+                {/* Character Distribution By Scene */}
+                <div className="spike-section" style={{ gridColumn: '1 / -1' }}>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}><Users size={18} /> Character Distribution by Scene</h3>
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>See how many unique characters appear in each scene to balance your cast.</p>
+                    <div style={{ height: '260px' }}>
+                        {sceneCharacterCounts.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={sceneCharacterCounts}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={true} opacity={0.5} />
+                                    <XAxis dataKey="name" tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
+                                    <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
+                                    <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px' }} />
+                                    <ReferenceLine y={averageChars} stroke="var(--color-warning)" label={{ position: 'insideTopRight', value: `Average (${averageChars})`, fill: 'var(--color-warning)', fontSize: 12 }} />
+                                    <Line type="monotone" dataKey="chars" stroke="#36A2EB" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                                </LineChart>
                             </ResponsiveContainer>
                         ) : <div style={{ color: 'var(--color-text-muted)' }}>No scenes found.</div>}
                     </div>

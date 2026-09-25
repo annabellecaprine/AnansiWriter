@@ -3,11 +3,21 @@ import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { Grid, Eye, Clock } from 'lucide-react'
 
+function extractTextFromJson(node: any): string {
+    if (!node) return ''
+    if (typeof node === 'string') return node
+    if (node.type === 'text' && node.text) return node.text
+    if (node.type === 'internalLink' && node.attrs?.name) return node.attrs.name
+    if (Array.isArray(node)) return node.map(extractTextFromJson).join(' ')
+    if (node.content) return extractTextFromJson(node.content)
+    return ''
+}
+
 export default function BibleHeatmap() {
     const { activeNovelId } = useWorkspaceStore()
     const [scenes, setScenes] = useState<any[]>([])
     const [entries, setEntries] = useState<any[]>([])
-    const [matrix, setMatrix] = useState<Record<string, Record<string, { confirmed: number, heuristic: number }>>>({})
+    const [matrix, setMatrix] = useState<Record<string, Record<string, number>>>({})
     const [maxVal, setMaxVal] = useState(1)
     const [mode, setMode] = useState<'manuscript' | 'narrative'>('manuscript')
 
@@ -29,27 +39,25 @@ export default function BibleHeatmap() {
             setScenes(s)
 
             const e = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
-            setEntries(e.filter(b => b.type === 'Character' || b.type === 'Location'))
-
-            const occ = await db.occurrences.where({ novelId: activeNovelId }).toArray()
+            const validEntries = e.filter(b => b.type === 'Character' || b.type === 'Location').sort((a, b) => b.name.length - a.name.length)
+            setEntries(validEntries)
 
             let max = 1
-            const map: Record<string, Record<string, { confirmed: number, heuristic: number }>> = {}
-            e.forEach(entry => map[entry.id] = {})
+            const map: Record<string, Record<string, number>> = {}
+            validEntries.forEach(entry => map[entry.id] = {})
 
-            occ.forEach(o => {
-                if (o.isDismissed) return
-                if (!map[o.entryId]) return
-                if (!map[o.entryId][o.sceneId]) map[o.entryId][o.sceneId] = { confirmed: 0, heuristic: 0 }
-
-                if (o.isConfirmed) {
-                    map[o.entryId][o.sceneId].confirmed += 1
-                } else {
-                    map[o.entryId][o.sceneId].heuristic += 1
-                }
-
-                const totalForScene = map[o.entryId][o.sceneId].confirmed + map[o.entryId][o.sceneId].heuristic
-                if (totalForScene > max) max = totalForScene
+            s.forEach(scene => {
+                const text = extractTextFromJson(scene.content)
+                validEntries.forEach(entry => {
+                    const safeT = entry.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
+                    const matches = text.match(regex)
+                    if (matches) {
+                        const count = matches.length
+                        map[entry.id][scene.id] = count
+                        if (count > max) max = count
+                    }
+                })
             })
 
             setMatrix(map)
@@ -91,26 +99,23 @@ export default function BibleHeatmap() {
                     if (!hasOccurrences) return null
 
                     return (
-                        <div key={entry.id} style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div style={{ width: '150px', flexShrink: 0, padding: '0.3rem 0.5rem', fontSize: '0.8rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                        <div key={entry.id} style={{ display: 'flex', borderBottom: '1px solid var(--color-border)' }}>
+                            <div style={{ width: '150px', flexShrink: 0, padding: '0.3rem 0.5rem', fontSize: '0.8rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', borderRight: '1px solid var(--color-border)' }}>
                                 {entry.name}
                             </div>
                             <div style={{ display: 'flex', flex: 1 }}>
                                 {scenes.map(s => {
-                                    const count = entryData[s.id] || { confirmed: 0, heuristic: 0 }
-                                    const total = count.confirmed + count.heuristic
+                                    const count = entryData[s.id] || 0
 
                                     let bg = 'transparent'
-                                    if (count.confirmed > 0) {
-                                        const opacity = Math.max(0.3, count.confirmed / maxVal)
-                                        bg = `rgba(0, 200, 150, ${opacity})`
-                                    } else if (count.heuristic > 0) {
-                                        const opacity = Math.max(0.3, count.heuristic / maxVal)
-                                        bg = `repeating-linear-gradient(45deg, rgba(255,165,0,${opacity}), rgba(255,165,0,${opacity}) 4px, transparent 4px, transparent 8px)`
+                                    if (count > 0) {
+                                        const intensity = count / maxVal
+                                        // Hot map: Orange -> Red
+                                        bg = intensity > 0.6 ? '#f03e3e' : intensity > 0.3 ? '#f76707' : intensity > 0.1 ? '#fd7e14' : '#ffa94d'
                                     }
 
                                     return (
-                                        <div key={s.id} title={`${entry.name} in ${s.name} (${total} hits: ${count.confirmed} Explicit, ${count.heuristic} Detected)`} style={{ flex: 1, background: bg, minWidth: '4px', borderRight: '1px solid rgba(0,0,0,0.1)' }} />
+                                        <div key={s.id} title={`${entry.name} in ${s.name} (${count} occurrences)`} style={{ flex: 1, background: bg, minWidth: '4px', borderRight: '1px solid var(--color-border)' }} />
                                     )
                                 })}
                             </div>
