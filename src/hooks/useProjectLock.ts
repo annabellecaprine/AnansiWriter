@@ -33,7 +33,7 @@ export function useProjectLock(projectId: string | undefined): boolean | null {
             try {
                 await navigator.locks.request(
                     `anansi-project-${projectId}`,
-                    { mode: 'exclusive', ifAvailable: true, signal: controller.signal },
+                    { mode: 'exclusive', ifAvailable: true },
                     async (lock) => {
                         if (!isMounted) return
 

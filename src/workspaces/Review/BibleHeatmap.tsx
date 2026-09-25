@@ -85,7 +85,9 @@ export default function BibleHeatmap() {
 
                 {/* Matrix Rows */}
                 {entries.map(entry => {
-                    const hasOccurrences = Object.keys(matrix[entry.id]).length > 0
+                    const entryData = matrix[entry.id]
+                    if (!entryData) return null
+                    const hasOccurrences = Object.keys(entryData).length > 0
                     if (!hasOccurrences) return null
 
                     return (
@@ -95,7 +97,7 @@ export default function BibleHeatmap() {
                             </div>
                             <div style={{ display: 'flex', flex: 1 }}>
                                 {scenes.map(s => {
-                                    const count = matrix[entry.id][s.id] || { confirmed: 0, heuristic: 0 }
+                                    const count = entryData[s.id] || { confirmed: 0, heuristic: 0 }
                                     const total = count.confirmed + count.heuristic
 
                                     let bg = 'transparent'
