@@ -3,14 +3,29 @@ import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { Grid, Eye, Clock } from 'lucide-react'
 
-function extractTextFromJson(node: any): string {
-    if (!node) return ''
-    if (typeof node === 'string') return node
-    if (node.type === 'text' && node.text) return node.text
-    if (node.type === 'internalLink' && node.attrs?.name) return node.attrs.name
-    if (Array.isArray(node)) return node.map(extractTextFromJson).join(' ')
-    if (node.content) return extractTextFromJson(node.content)
-    return ''
+function extractAnalyticsDataFromJson(node: any, state: { text: string[], links: string[] } = { text: [], links: [] }) {
+    if (!node) return state
+    if (typeof node === 'string') {
+        state.text.push(node)
+        return state
+    }
+    if (node.type === 'text' && node.text) {
+        state.text.push(node.text)
+        return state
+    }
+    if (node.type === 'internalLink') {
+        if (node.attrs?.name) state.text.push(node.attrs.name)
+        if (node.attrs?.id) state.links.push(node.attrs.id)
+        return state
+    }
+    if (Array.isArray(node)) {
+        node.forEach(n => extractAnalyticsDataFromJson(n, state))
+        return state
+    }
+    if (node.content) {
+        extractAnalyticsDataFromJson(node.content, state)
+    }
+    return state
 }
 
 export default function BibleHeatmap() {
@@ -47,15 +62,28 @@ export default function BibleHeatmap() {
             validEntries.forEach(entry => map[entry.id] = {})
 
             s.forEach(scene => {
-                const text = extractTextFromJson(scene.content)
+                const results = extractAnalyticsDataFromJson(scene.content, { text: [], links: [] })
+                const text = results.text.join(' ')
+                const links = results.links
+
                 validEntries.forEach(entry => {
-                    const safeT = entry.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
-                    const matches = text.match(regex)
-                    if (matches) {
-                        const count = matches.length
-                        map[entry.id][scene.id] = count
-                        if (count > max) max = count
+                    let matches = 0
+
+                    // Add explicit internalLink hits
+                    matches += links.filter((id: string) => id === entry.id).length
+
+                    // Add text alias heurustic hits
+                    const searchTerms = [entry.name, ...(entry.aliases || [])].filter(Boolean)
+                    searchTerms.forEach(term => {
+                        const safeT = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        const regex = new RegExp(`(?<=^|\\W)(${safeT})(?=$|\\W)`, 'gi')
+                        const regMatch = text.match(regex)
+                        if (regMatch) matches += regMatch.length
+                    })
+
+                    if (matches > 0) {
+                        map[entry.id][scene.id] = matches
+                        if (matches > max) max = matches
                     }
                 })
             })

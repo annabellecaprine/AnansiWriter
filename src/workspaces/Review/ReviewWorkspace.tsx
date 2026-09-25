@@ -8,15 +8,29 @@ import RelationshipGraph from './RelationshipGraph'
 import TokenHabitChart from './TokenHabitChart'
 import DailyHabitHeatmap from './DailyHabitHeatmap'
 
-// Dummy extract logic for now
-function extractTextFromJson(node: any): string {
-    if (!node) return ''
-    if (typeof node === 'string') return node
-    if (node.type === 'text' && node.text) return node.text
-    if (node.type === 'internalLink' && node.attrs?.name) return node.attrs.name
-    if (Array.isArray(node)) return node.map(extractTextFromJson).join(' ')
-    if (node.content) return extractTextFromJson(node.content)
-    return ''
+function extractAnalyticsDataFromJson(node: any, state: { text: string[], links: string[] } = { text: [], links: [] }) {
+    if (!node) return state
+    if (typeof node === 'string') {
+        state.text.push(node)
+        return state
+    }
+    if (node.type === 'text' && node.text) {
+        state.text.push(node.text)
+        return state
+    }
+    if (node.type === 'internalLink') {
+        if (node.attrs?.name) state.text.push(node.attrs.name)
+        if (node.attrs?.id) state.links.push(node.attrs.id)
+        return state
+    }
+    if (Array.isArray(node)) {
+        node.forEach(n => extractAnalyticsDataFromJson(n, state))
+        return state
+    }
+    if (node.content) {
+        extractAnalyticsDataFromJson(node.content, state)
+    }
+    return state
 }
 
 function countWords(text: string): number {
@@ -52,11 +66,12 @@ export default function ReviewWorkspace() {
             const sceneDataRaw: any[] = []
 
             const sceneData = scenes.sort((a, b) => a.sortOrder - b.sortOrder).map(s => {
-                const textDump = extractTextFromJson(s.content)
+                const results = extractAnalyticsDataFromJson(s.content, { text: [], links: [] })
+                const textDump = results.text.join(' ')
                 const words = countWords(textDump)
                 sceneCache[s.id] = words
                 total += words
-                sceneDataRaw.push({ scene: s, text: textDump })
+                sceneDataRaw.push({ scene: s, text: textDump, links: results.links })
                 return { name: s.name, words }
             })
 
@@ -94,13 +109,26 @@ export default function ReviewWorkspace() {
             // Native Heuristic Detection (Instead of relying on AI occurrences payload)
             sceneDataRaw.forEach(pack => {
                 const text = pack.text
+                const links = pack.links
                 charEntriesSorted.forEach(ce => {
                     if (ce.type === 'Character') {
-                        const safeT = ce.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                        const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
-                        const matches = text.match(regex)
-                        if (matches) {
-                            charCounts[ce.name] = (charCounts[ce.name] || 0) + matches.length
+                        let matches = 0
+
+                        // Explicit explicit ID hit tracking
+                        const explicitHits = links.filter((id: string) => id === ce.id).length
+                        matches += explicitHits
+
+                        // Aggressive Text Aliasing
+                        const searchTerms = [ce.name, ...(ce.aliases || [])].filter(Boolean)
+                        searchTerms.forEach(term => {
+                            const safeT = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                            const regex = new RegExp(`(?<=^|\\W)(${safeT})(?=$|\\W)`, 'gi')
+                            const regMatch = text.match(regex)
+                            if (regMatch) matches += regMatch.length
+                        })
+
+                        if (matches > 0) {
+                            charCounts[ce.name] = (charCounts[ce.name] || 0) + matches
                         }
                     }
                 })
@@ -116,13 +144,25 @@ export default function ReviewWorkspace() {
             const charCountArray = sceneDataRaw.map(pack => {
                 let charCount = 0
                 const text = pack.text
+                const links = pack.links
                 charEntriesSorted.forEach(ce => {
                     if (ce.type === 'Character') {
-                        const safeT = ce.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                        const regex = new RegExp(`\\b${safeT}\\b`, 'gi')
-                        if (regex.test(text)) {
-                            charCount++
+                        let hit = false
+                        if (links.includes(ce.id)) hit = true
+
+                        if (!hit) {
+                            const searchTerms = [ce.name, ...(ce.aliases || [])].filter(Boolean)
+                            for (const term of searchTerms) {
+                                const safeT = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                                const regex = new RegExp(`(?<=^|\\W)(${safeT})(?=$|\\W)`, 'gi')
+                                if (regex.test(text)) {
+                                    hit = true
+                                    break
+                                }
+                            }
                         }
+
+                        if (hit) charCount++
                     }
                 })
                 return { name: pack.scene.name, chars: charCount }
