@@ -6,6 +6,7 @@ import { AIChatThread } from '../../db/schema'
 import { X, MessageSquare, Plus, Archive, Pin, Trash2, Send, Layers, Loader2 } from 'lucide-react'
 import ContextPickerModal from './ContextPickerModal'
 import { AIService } from '../../services/AIService'
+import { confirmAction, confirmAlert } from '../../store/dialogStore'
 
 export default function MasterChatOverlay() {
     const { isChatPaneOpen, toggleChatPane, activeNovelId } = useWorkspaceStore()
@@ -112,7 +113,11 @@ export default function MasterChatOverlay() {
             setActiveThreads(await AIChatService.getActiveThreads(activeNovelId))
         } catch (e: any) {
             console.error(e)
-            alert(`AI Inference failed: ${e.message}`)
+            await confirmAlert({
+                title: 'Inference Error',
+                message: `AI Inference failed: ${e.message}`,
+                isDestructive: true
+            })
         } finally {
             setIsGenerating(false)
         }
@@ -132,7 +137,7 @@ export default function MasterChatOverlay() {
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--color-border)' }}>
                 <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <MessageSquare size={16} color="var(--color-primary)" />
+                    <MessageSquare size={16} color="var(--color-accent)" />
                     AI Chat
                 </span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -159,7 +164,7 @@ export default function MasterChatOverlay() {
                                     fontSize: '0.8rem',
                                     cursor: 'pointer',
                                     background: selectedThreadId === t.id ? 'var(--color-surface)' : 'transparent',
-                                    borderLeft: selectedThreadId === t.id ? '3px solid var(--color-primary)' : '3px solid transparent',
+                                    borderLeft: selectedThreadId === t.id ? '3px solid var(--color-accent)' : '3px solid transparent',
                                     whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'
                                 }}>
                                 {t.isPinned && <Pin size={10} style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} />}
@@ -184,7 +189,12 @@ export default function MasterChatOverlay() {
                                         placeholder="Chat Title..."
                                     />
                                     <button className="btn outline" onClick={async () => {
-                                        if (confirm("Delete this AI Thread permanently?")) {
+                                        const confirmed = await confirmAction({
+                                            title: 'Delete AI Thread',
+                                            message: 'Delete this AI Thread permanently?',
+                                            isDestructive: true
+                                        });
+                                        if (confirmed) {
                                             await AIChatService.deleteThread(selectedThreadId)
                                             setSelectedThreadId(null)
                                             if (activeNovelId) {
@@ -214,7 +224,7 @@ export default function MasterChatOverlay() {
                                         <div key={idx} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
                                             <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginBottom: '0.2rem', textAlign: m.role === 'user' ? 'right' : 'left', textTransform: 'uppercase' }}>{m.role}</div>
                                             <div style={{
-                                                background: m.role === 'user' ? 'var(--color-primary)' : 'var(--color-bg)',
+                                                background: m.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg)',
                                                 color: m.role === 'user' ? '#fff' : 'var(--color-text)',
                                                 padding: '0.6rem 0.8rem',
                                                 borderRadius: 'var(--radius-md)',
@@ -239,9 +249,11 @@ export default function MasterChatOverlay() {
                                 {selectedContext.length > 0 && (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginBottom: '0.5rem' }}>
                                         {selectedContext.map(c => (
-                                            <span key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'var(--color-bg)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', border: '1px solid var(--color-border)' }}>
+                                            <span key={c.id} className="chip">
                                                 {c.name}
-                                                <X size={10} style={{ cursor: 'pointer', opacity: 0.5 }} onClick={() => setSelectedContext(px => px.filter(x => x.id !== c.id))} />
+                                                <button className="icon-btn" style={{ padding: '0.1rem', margin: '-0.1rem' }} onClick={() => setSelectedContext(px => px.filter(x => x.id !== c.id))}>
+                                                    <X size={10} />
+                                                </button>
                                             </span>
                                         ))}
                                     </div>

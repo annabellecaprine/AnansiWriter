@@ -107,7 +107,7 @@ export function BibleEntryPane({ entryId, onRefreshLibrary, onClose }: { entryId
                 {activeTab === 'Relationships' && <RelationshipsTab entryId={entryId} />}
                 {activeTab === 'Media' && <MediaTab entry={entry} assets={assets} onUpdated={loadEntry} />}
                 {activeTab === 'Timeline' && <TimelineTab entryId={entryId} fields={fields} onUpdated={loadEntry} />}
-                {activeTab === 'Sources' && <SourcesTab entryId={entryId} fields={fields} />}
+                {activeTab === 'Sources' && <SourcesTab entry={entry} fields={fields} onUpdated={() => { loadEntry(); onRefreshLibrary(); }} />}
                 {activeTab === 'Advanced' && <AdvancedTab entry={entry} onUpdated={() => { loadEntry(); onRefreshLibrary(); }} />}
             </div>
         </div>

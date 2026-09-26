@@ -185,12 +185,12 @@ export default function AIWorkshop() {
     }
 
     return (
-        <div className="workspace-view" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', padding: '2rem' }}>
+        <div className="workspace-view" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '2rem' }}>
             <div style={{ display: 'flex', gap: '2rem', height: '100%' }}>
 
                 {/* Control Panel (Left) */}
                 <div style={{ width: '350px', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
-                    <div className="spike-section">
+                    <div className="surface-panel">
                         <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Ghost size={18} /> Engine Config</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
                             <div>
@@ -247,7 +247,7 @@ export default function AIWorkshop() {
                         </div>
                     </div>
 
-                    <div className="spike-section">
+                    <div className="surface-panel">
                         <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><SettingsIcon size={18} /> Inference Source</h3>
 
                         <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Target Scene Context</label>

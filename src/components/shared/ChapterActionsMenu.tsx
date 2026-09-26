@@ -4,7 +4,7 @@ import { confirmAction, promptInput } from '../../store/dialogStore'
 import { db } from '../../db/database'
 import { WritingService } from '../../services/WritingService'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { Plus, Trash2, Copy, Archive, ChevronRight, Wand2 } from 'lucide-react'
+import { Plus, Trash2, Copy, Archive, ChevronRight, Wand2, Edit2 } from 'lucide-react'
 
 interface Props {
     chapterId: string
@@ -37,9 +37,9 @@ export default function ChapterActionsMenu({ chapterId, anchorRef, onClose, onRe
 
     useEffect(() => {
         if (activeNovelId) {
-            db.prompts.where({ novelId: activeNovelId }).toArray().then((pList) => {
-                setPrompts(pList.filter(p => !p.isTrashed))
-            })
+            db.prompts.where({ novelId: activeNovelId }).toArray()
+                .then((pList) => setPrompts(pList.filter(p => !p.isTrashed)))
+                .catch(e => console.error('Failed to load prompts:', e))
         }
     }, [activeNovelId])
 
@@ -84,6 +84,17 @@ export default function ChapterActionsMenu({ chapterId, anchorRef, onClose, onRe
                 name, sortOrder: chapter.sortOrder + 0.5,
                 createdAt: now, updatedAt: now
             })
+            onReload?.()
+        }
+        onClose()
+    }
+
+    const handleRenameChapter = async () => {
+        const chapter = await db.chapters.get(chapterId)
+        if (!chapter) return
+        const newName = await promptInput({ title: 'Rename Chapter', defaultValue: chapter.name })
+        if (newName && newName !== chapter.name) {
+            await db.chapters.update(chapterId, { name: newName, updatedAt: Date.now() })
             onReload?.()
         }
         onClose()
@@ -164,6 +175,7 @@ export default function ChapterActionsMenu({ chapterId, anchorRef, onClose, onRe
     return (
         <div ref={menuRef} style={menuStyle}>
             {label('Chapter Actions')}
+            <MenuItem onClick={handleRenameChapter}><Edit2 size={14} /> Rename Chapter</MenuItem>
             <MenuItem onClick={handleAddScene}><Plus size={14} /> Add Scene</MenuItem>
             <MenuItem onClick={handleAddChapterBefore}><Plus size={14} /> Add Chapter Before</MenuItem>
             <MenuItem onClick={handleAddChapterAfter}><Plus size={14} /> Add Chapter After</MenuItem>

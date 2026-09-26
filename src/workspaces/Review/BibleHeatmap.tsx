@@ -41,8 +41,38 @@ export default function BibleHeatmap() {
 
         const buildMatrix = async () => {
             let s = await db.scenes.where({ novelId: activeNovelId }).toArray()
+
+            const acts = await db.acts.where({ novelId: activeNovelId }).toArray()
+            const chapters = await db.chapters.where({ novelId: activeNovelId }).toArray()
+
+            const actSortMap: Record<string, number> = {}
+            acts.forEach(a => actSortMap[a.id] = a.sortOrder)
+            const chapterSortMap: Record<string, number> = {}
+            chapters.forEach(c => chapterSortMap[c.id] = c.sortOrder)
+            const chapterActMap: Record<string, number> = {}
+            chapters.forEach(c => chapterActMap[c.id] = c.actId ? (actSortMap[c.actId] || 0) : 0)
+
+            const chapterLabels: Record<string, string> = {}
+            chapters.sort((a, b) => a.sortOrder - b.sortOrder).forEach((c, idx) => chapterLabels[c.id] = `C${idx + 1}`)
+
             // Manuscript Order
-            s.sort((a, b) => a.sortOrder - b.sortOrder)
+            s.sort((a, b) => {
+                const aAct = chapterActMap[a.chapterId] || 0
+                const bAct = chapterActMap[b.chapterId] || 0
+                if (aAct !== bAct) return aAct - bAct
+
+                const aChap = chapterSortMap[a.chapterId] || 0
+                const bChap = chapterSortMap[b.chapterId] || 0
+                if (aChap !== bChap) return aChap - bChap
+
+                return a.sortOrder - b.sortOrder
+            })
+
+            // Bind explicitly condensed labels to the scene objects for tooltips
+            s.forEach((scene: any) => {
+                scene.shortLabel = `${chapterLabels[scene.chapterId] || ''}.S${scene.sortOrder + 1}: ${scene.name}`
+            })
+
             // Narrative Order sorts by underlying NarrativePosition
             if (mode === 'narrative') {
                 s.sort((a, b) => {
@@ -54,38 +84,30 @@ export default function BibleHeatmap() {
             setScenes(s)
 
             const e = await db.bibleEntries.where({ novelId: activeNovelId }).toArray()
-            const validEntries = e.filter(b => b.type === 'Character' || b.type === 'Location').sort((a, b) => b.name.length - a.name.length)
+            const validEntries = e.filter(b => b.type?.toLowerCase() === 'character' || b.type?.toLowerCase() === 'location').sort((a, b) => b.name.length - a.name.length)
             setEntries(validEntries)
 
             let max = 1
             const map: Record<string, Record<string, number>> = {}
             validEntries.forEach(entry => map[entry.id] = {})
 
-            s.forEach(scene => {
-                const results = extractAnalyticsDataFromJson(scene.content, { text: [], links: [] })
-                const text = results.text.join(' ')
-                const links = results.links
-
+            s.forEach((scene: any) => {
+                const cast = scene.cast || []
                 validEntries.forEach(entry => {
-                    let matches = 0
-
-                    // Add explicit internalLink hits
-                    matches += links.filter((id: string) => id === entry.id).length
-
-                    // Add text alias heurustic hits
-                    const searchTerms = [entry.name, ...(entry.aliases || [])].filter(Boolean)
-                    searchTerms.forEach(term => {
-                        const safeT = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                        const regex = new RegExp(`(?<=^|\\W)(${safeT})(?=$|\\W)`, 'gi')
-                        const regMatch = text.match(regex)
-                        if (regMatch) matches += regMatch.length
-                    })
-
-                    if (matches > 0) {
-                        map[entry.id][scene.id] = matches
-                        if (matches > max) max = matches
+                    const isPresent = cast.includes(entry.id)
+                    if (isPresent) {
+                        map[entry.id][scene.id] = 1
                     }
                 })
+            })
+
+            // Iterate map again isolating highest hit counts (Only boolean 0/1 now)
+            validEntries.forEach(entry => {
+                const vals = Object.values(map[entry.id])
+                if (vals.length > 0) {
+                    const localMax = Math.max(...vals)
+                    if (localMax > max) max = localMax
+                }
             })
 
             setMatrix(map)
@@ -97,12 +119,12 @@ export default function BibleHeatmap() {
     if (scenes.length === 0 || entries.length === 0) return null
 
     return (
-        <div className="spike-section" style={{ marginTop: '2rem', overflowX: 'auto' }}>
+        <div className="surface-panel" style={{ marginTop: '2rem', overflowX: 'auto' }}>
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Grid size={18} /> Bible Appearance Heatmap</h3>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className={`btn ${mode === 'manuscript' ? 'active' : ''}`} style={{ background: mode === 'manuscript' ? 'var(--color-primary)' : 'var(--color-surface)', fontSize: '0.8rem' }} onClick={() => setMode('manuscript')}><Eye size={14} /> Manuscript Span</button>
-                    <button className={`btn ${mode === 'narrative' ? 'active' : ''}`} style={{ background: mode === 'narrative' ? 'var(--color-primary)' : 'var(--color-surface)', fontSize: '0.8rem' }} onClick={() => setMode('narrative')}><Clock size={14} /> Chronological</button>
+                    <button className={`btn ${mode === 'manuscript' ? 'active' : ''}`} style={{ background: mode === 'manuscript' ? 'var(--color-accent)' : 'var(--color-surface)', fontSize: '0.8rem' }} onClick={() => setMode('manuscript')}><Eye size={14} /> Manuscript Span</button>
+                    <button className={`btn ${mode === 'narrative' ? 'active' : ''}`} style={{ background: mode === 'narrative' ? 'var(--color-accent)' : 'var(--color-surface)', fontSize: '0.8rem' }} onClick={() => setMode('narrative')}><Clock size={14} /> Chronological</button>
                 </div>
             </header>
 
@@ -112,7 +134,7 @@ export default function BibleHeatmap() {
                     <div style={{ width: '150px', flexShrink: 0, padding: '0.5rem', fontWeight: 'bold', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Target Element</div>
                     <div style={{ display: 'flex', flex: 1 }}>
                         {scenes.map((s, idx) => (
-                            <div key={s.id} title={s.name} style={{ flex: 1, minWidth: '4px', textAlign: 'center', fontSize: '0.6rem', color: 'var(--color-text-muted)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                            <div key={s.id} title={s.name} style={{ flex: 1, minWidth: '12px', textAlign: 'center', fontSize: '0.6rem', color: 'var(--color-text-muted)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                 S{idx + 1}
                             </div>
                         ))}
@@ -143,7 +165,7 @@ export default function BibleHeatmap() {
                                     }
 
                                     return (
-                                        <div key={s.id} title={`${entry.name} in ${s.name} (${count} occurrences)`} style={{ flex: 1, background: bg, minWidth: '4px', borderRight: '1px solid var(--color-border)' }} />
+                                        <div key={s.id} title={`${entry.name} in ${s.name} (${count} occurrences)`} style={{ flex: 1, background: bg, minWidth: '12px', borderRight: '1px solid var(--color-border)' }} />
                                     )
                                 })}
                             </div>

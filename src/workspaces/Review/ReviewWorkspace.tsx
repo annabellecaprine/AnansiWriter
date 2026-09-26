@@ -40,6 +40,9 @@ function countWords(text: string): number {
 export default function ReviewWorkspace() {
     const { activeNovelId } = useWorkspaceStore()
     const [hierarchyCounts, setHierarchyCounts] = useState<{ books: any[], acts: any[], chapters: any[], scenes: any[] }>({ books: [], acts: [], chapters: [], scenes: [] })
+    const [charEntriesSize, setCharEntriesSize] = useState(0)
+    const [debugLinks, setDebugLinks] = useState<string[]>([])
+    const [activeNovelIdState, setActiveNovelIdState] = useState('')
     const [viewLevel, setViewLevel] = useState<'Book' | 'Act' | 'Chapter' | 'Scene'>('Scene')
     const [characterDistribution, setCharacterDistribution] = useState<any[]>([])
     const [sceneCharacterCounts, setSceneCharacterCounts] = useState<any[]>([])
@@ -63,15 +66,42 @@ export default function ReviewWorkspace() {
             const sceneCache: Record<string, number> = {}
             let total = 0
 
+            const actSortMap: Record<string, number> = {}
+            acts.forEach(a => actSortMap[a.id] = a.sortOrder)
+
+            const chapterSortMap: Record<string, number> = {}
+            chapters.forEach(c => chapterSortMap[c.id] = c.sortOrder)
+
+            const chapterActMap: Record<string, number> = {}
+            chapters.forEach(c => chapterActMap[c.id] = c.actId ? (actSortMap[c.actId] || 0) : 0)
+
+            const sortedScenes = scenes.sort((a, b) => {
+                const aAct = chapterActMap[a.chapterId] || 0
+                const bAct = chapterActMap[b.chapterId] || 0
+                if (aAct !== bAct) return aAct - bAct
+
+                const aChap = chapterSortMap[a.chapterId] || 0
+                const bChap = chapterSortMap[b.chapterId] || 0
+                if (aChap !== bChap) return aChap - bChap
+
+                return a.sortOrder - b.sortOrder
+            })
+
+            // Generate clean labels for UI density
+            const chapterLabels: Record<string, string> = {}
+            chapters.sort((a, b) => a.sortOrder - b.sortOrder).forEach((c, idx) => chapterLabels[c.id] = `C${idx + 1}`)
+
             const sceneDataRaw: any[] = []
 
-            const sceneData = scenes.sort((a, b) => a.sortOrder - b.sortOrder).map(s => {
+            const sceneData = sortedScenes.map(s => {
                 const results = extractAnalyticsDataFromJson(s.content, { text: [], links: [] })
                 const textDump = results.text.join(' ')
                 const words = countWords(textDump)
                 sceneCache[s.id] = words
                 total += words
-                sceneDataRaw.push({ scene: s, text: textDump, links: results.links })
+                const chPrefix = chapterLabels[s.chapterId] || ''
+                const shortLabel = `${chPrefix}.S${s.sortOrder + 1}`
+                sceneDataRaw.push({ scene: s, text: textDump, links: results.links, shortLabel })
                 return { name: s.name, words }
             })
 
@@ -106,30 +136,12 @@ export default function ReviewWorkspace() {
 
             const charCounts: Record<string, number> = {}
 
-            // Native Heuristic Detection (Instead of relying on AI occurrences payload)
+            // Native Cast Extrapolation (Bypassing heuristic heuristics fully overriding with explicit tracking)
             sceneDataRaw.forEach(pack => {
-                const text = pack.text
-                const links = pack.links
+                const cast = pack.scene.cast || []
                 charEntriesSorted.forEach(ce => {
-                    if (ce.type === 'Character') {
-                        let matches = 0
-
-                        // Explicit explicit ID hit tracking
-                        const explicitHits = links.filter((id: string) => id === ce.id).length
-                        matches += explicitHits
-
-                        // Aggressive Text Aliasing
-                        const searchTerms = [ce.name, ...(ce.aliases || [])].filter(Boolean)
-                        searchTerms.forEach(term => {
-                            const safeT = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                            const regex = new RegExp(`(?<=^|\\W)(${safeT})(?=$|\\W)`, 'gi')
-                            const regMatch = text.match(regex)
-                            if (regMatch) matches += regMatch.length
-                        })
-
-                        if (matches > 0) {
-                            charCounts[ce.name] = (charCounts[ce.name] || 0) + matches
-                        }
+                    if (ce.type?.toLowerCase() === 'character' && cast.includes(ce.id)) {
+                        charCounts[ce.name] = (charCounts[ce.name] || 0) + 1
                     }
                 })
             })
@@ -142,30 +154,9 @@ export default function ReviewWorkspace() {
             setCharacterDistribution(pieData)
 
             const charCountArray = sceneDataRaw.map(pack => {
-                let charCount = 0
-                const text = pack.text
-                const links = pack.links
-                charEntriesSorted.forEach(ce => {
-                    if (ce.type === 'Character') {
-                        let hit = false
-                        if (links.includes(ce.id)) hit = true
-
-                        if (!hit) {
-                            const searchTerms = [ce.name, ...(ce.aliases || [])].filter(Boolean)
-                            for (const term of searchTerms) {
-                                const safeT = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                                const regex = new RegExp(`(?<=^|\\W)(${safeT})(?=$|\\W)`, 'gi')
-                                if (regex.test(text)) {
-                                    hit = true
-                                    break
-                                }
-                            }
-                        }
-
-                        if (hit) charCount++
-                    }
-                })
-                return { name: pack.scene.name, chars: charCount }
+                const cast = pack.scene.cast || []
+                const charCount = charEntriesSorted.filter(ce => ce.type?.toLowerCase() === 'character' && cast.includes(ce.id)).length
+                return { name: pack.scene.name, id: pack.scene.id, chars: charCount, shortLabel: pack.shortLabel }
             })
             setSceneCharacterCounts(charCountArray)
             setAverageChars(charCountArray.length > 0 ? Math.round(charCountArray.reduce((acc, c) => acc + c.chars, 0) / charCountArray.length) : 0)
@@ -213,15 +204,15 @@ export default function ReviewWorkspace() {
                     let speakerName = "Unknown Speaker"
                     if (closestEntityId) {
                         const entry = charEntries.find(e => e.id === closestEntityId)
-                        if (entry && entry.type === 'Character') speakerName = entry.name
+                        if (entry && entry.type?.toLowerCase() === 'character') speakerName = entry.name
                     } else {
                         const precedingText = text.substring(Math.max(0, quoteStart - 400), quoteStart)
                         let closestDistInner = Infinity
                         let closestMatchName = null
 
                         for (const ce of charEntriesSorted) {
-                            if (ce.type === 'Character') {
-                                const safeName = ce.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                            if (ce.type?.toLowerCase() === 'character') {
+                                const safeName = ce.name.trim().replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
                                 const execRegex = new RegExp(`\\b${safeName}\\b`, 'gi')
                                 let m;
                                 let lastFoundIdx = -1
@@ -296,6 +287,23 @@ export default function ReviewWorkspace() {
                 })
             })
 
+            // Feature E: Temporal Continuity Checks
+            let previousMaxTimelineEnd = -Infinity
+            sortedScenes.forEach(s => {
+                const sStart = s.timelineStart
+                if (typeof sStart === 'number') {
+                    if (sStart < previousMaxTimelineEnd && !s.labels?.includes('Flashback')) {
+                        warnings.push({
+                            sceneName: s.name,
+                            message: `Numerical chronology drop. Starts at ${s.timelineLabel || sStart} but a preceding scene in the manuscript structure occurs later. Add a 'Flashback' label to ignore.`,
+                            type: 'Temporal Anomaly'
+                        })
+                    }
+                    const sEnd = typeof s.timelineEnd === 'number' ? s.timelineEnd : sStart
+                    previousMaxTimelineEnd = Math.max(previousMaxTimelineEnd, sEnd)
+                }
+            })
+
             // Filter redundancies
             const uniqueWarnings = Array.from(new Set(warnings.map(w => JSON.stringify(w)))).map(s => JSON.parse(s))
             setContradictions(uniqueWarnings)
@@ -311,7 +319,7 @@ export default function ReviewWorkspace() {
     }
 
     return (
-        <div className="workspace-view" style={{ padding: '2rem', height: '100vh', overflowY: 'auto' }}>
+        <div className="workspace-view" style={{ padding: '2rem', height: '100%', overflowY: 'auto' }}>
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><FileLineChart /> Analytics & Review Dashboard</h1>
@@ -326,11 +334,11 @@ export default function ReviewWorkspace() {
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
 
                 {/* Scene Distribution */}
-                <div className="spike-section">
+                <div className="surface-panel">
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><FileText size={18} /> Word Count Distribution by Scene</h3>
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                         {['Book', 'Act', 'Chapter', 'Scene'].map(lvl => (
-                            <button key={lvl} onClick={() => setViewLevel(lvl as any)} style={{ background: viewLevel === lvl ? 'var(--color-primary)' : 'var(--color-surface)', color: viewLevel === lvl ? '#fff' : 'var(--color-text)', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>{lvl}</button>
+                            <button key={lvl} onClick={() => setViewLevel(lvl as any)} style={{ background: viewLevel === lvl ? 'var(--color-accent)' : 'var(--color-surface)', color: viewLevel === lvl ? '#fff' : 'var(--color-text)', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>{lvl}</button>
                         ))}
                     </div>
                     <div style={{ height: '260px' }}>
@@ -344,7 +352,7 @@ export default function ReviewWorkspace() {
                                     {viewLevel === 'Scene' && (
                                         <ReferenceLine y={averageWordCount} stroke="var(--color-warning)" strokeDasharray="3 3" label={{ position: 'insideTopRight', value: `Average (${averageWordCount})`, fill: 'var(--color-warning)', fontSize: 12 }} />
                                     )}
-                                    <Bar dataKey="words" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="words" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : <div style={{ color: 'var(--color-text-muted)' }}>No scenes found.</div>}
@@ -352,7 +360,7 @@ export default function ReviewWorkspace() {
                 </div>
 
                 {/* Character Distribution By Scene */}
-                <div className="spike-section" style={{ gridColumn: '1 / -1' }}>
+                <div className="surface-panel" style={{ gridColumn: '1 / -1' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}><Users size={18} /> Character Distribution by Scene</h3>
                     <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>See how many unique characters appear in each scene to balance your cast.</p>
                     <div style={{ height: '260px' }}>
@@ -360,10 +368,16 @@ export default function ReviewWorkspace() {
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={sceneCharacterCounts}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={true} opacity={0.5} />
-                                    <XAxis dataKey="name" tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
-                                    <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
-                                    <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px' }} />
-                                    <ReferenceLine y={averageChars} stroke="var(--color-warning)" label={{ position: 'insideTopRight', value: `Average (${averageChars})`, fill: 'var(--color-warning)', fontSize: 12 }} />
+                                    <XAxis dataKey="id" minTickGap={20} tickFormatter={(val) => {
+                                        const p = sceneCharacterCounts.find(c => c.id === val)
+                                        return p ? p.shortLabel : val
+                                    }} tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+                                    <YAxis allowDecimals={false} tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+                                    <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }} labelFormatter={(val) => {
+                                        const p = sceneCharacterCounts.find(c => c.id === val)
+                                        return p ? p.name : val
+                                    }} />
+                                    <ReferenceLine y={averageChars} stroke="var(--color-warning)" label={{ position: 'bottom', offset: 15, value: `Average (${averageChars})`, fill: 'var(--color-warning)', fontSize: 11 }} />
                                     <Line type="monotone" dataKey="chars" stroke="#36A2EB" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -372,7 +386,7 @@ export default function ReviewWorkspace() {
                 </div>
 
                 {/* Character Screen Time */}
-                <div className="spike-section">
+                <div className="surface-panel">
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Users size={18} /> Character Prominence (Top 10)</h3>
                     <div style={{ height: '300px' }}>
                         {characterDistribution.length > 0 ? (
@@ -409,7 +423,7 @@ export default function ReviewWorkspace() {
                 </div>
 
                 {/* Dialogue Share */}
-                <div className="spike-section">
+                <div className="surface-panel">
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Users size={18} /> Dialogue Share (Top 10)</h3>
                     <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', textAlign: 'right' }}>
                         <strong style={{ fontSize: '1.2rem', color: 'var(--color-accent)' }}>{dialogueTotal.toLocaleString()}</strong>
@@ -452,7 +466,7 @@ export default function ReviewWorkspace() {
             </div>
 
             {/* Contradiction Surfacing */}
-            <div className="spike-section" style={{ marginTop: '2rem', border: '1px solid var(--color-warning)', background: 'rgba(255, 160, 0, 0.05)' }}>
+            <div className="surface-panel" style={{ marginTop: '2rem', border: '1px solid var(--color-warning)', background: 'rgba(255, 160, 0, 0.05)' }}>
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--color-warning)' }}><AlertTriangle size={18} /> Continuity Warnings</h3>
 
                 {contradictions.length > 0 ? (

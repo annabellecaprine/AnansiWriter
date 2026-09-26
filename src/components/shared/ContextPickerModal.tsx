@@ -89,7 +89,7 @@ export default function ContextPickerModal({ novelId, onClose, onContextSelected
 
     const renderCheckbox = (itemId: string) => {
         const isChecked = selected.has(itemId)
-        return isChecked ? <CheckSquare size={16} color="var(--color-primary)" /> : <Square size={16} color="var(--color-text-muted)" />
+        return isChecked ? <CheckSquare size={16} color="var(--color-accent)" /> : <Square size={16} color="var(--color-text-muted)" />
     }
 
     return (
@@ -108,7 +108,7 @@ export default function ContextPickerModal({ novelId, onClose, onContextSelected
             }}>
                 <div style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Select Context</h2>
-                    <button className="btn outline" onClick={onClose} style={{ padding: '0.4rem' }}><X size={16} /></button>
+                    <button className="btn outline" onClick={onClose} style={{ padding: '0.4rem' }} aria-label="Close"><X size={16} /></button>
                 </div>
 
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)' }}>

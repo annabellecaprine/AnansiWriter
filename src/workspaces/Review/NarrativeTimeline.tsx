@@ -25,7 +25,7 @@ export default function NarrativeTimeline() {
     if (scenes.length === 0) return null
 
     return (
-        <div className="spike-section" style={{ marginTop: '2rem' }}>
+        <div className="surface-panel" style={{ marginTop: '2rem' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Calendar size={18} /> Narrative Vector Timeline</h3>
 
             <div style={{ padding: '1rem', background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', position: 'relative' }}>
@@ -33,7 +33,7 @@ export default function NarrativeTimeline() {
 
                 {scenes.map((s, idx) => (
                     <div key={s.id} style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', position: 'relative' }}>
-                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--color-primary)', position: 'relative', top: '5px', left: '0.8rem', zIndex: 2, border: '2px solid var(--color-bg)' }}></div>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--color-accent)', position: 'relative', top: '5px', left: '0.8rem', zIndex: 2, border: '2px solid var(--color-bg)' }}></div>
 
                         <div style={{ flex: 1, background: 'var(--color-surface)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

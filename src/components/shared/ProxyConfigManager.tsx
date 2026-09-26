@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { ProxyConfigService, type ProxyConfig } from '../../services/ProxyConfigService'
 import { AIService } from '../../services/AIService'
 import { Plus, Key, Zap, CheckCircle, AlertTriangle } from 'lucide-react'
+import { confirmAction, confirmAlert } from '../../store/dialogStore'
 
 interface ProxyConfigManagerProps {
     onActiveChanged?: (activeConfig: ProxyConfig) => void
@@ -140,12 +141,21 @@ export const ProxyConfigManager: React.FC<ProxyConfigManagerProps> = ({ onActive
             const updated = await ProxyConfigService.importProxyConfigs(text)
             setConfigs(updated)
         } catch (err: any) {
-            alert('Failed to import proxy configurations: ' + err.message)
+            await confirmAlert({
+                title: 'Import Error',
+                message: 'Failed to import proxy configurations: ' + err.message,
+                isDestructive: true
+            })
         }
     }
 
     const handleRecoverDefaults = async () => {
-        if (confirm('Reset proxy configurations to default presets?')) {
+        const confirmed = await confirmAction({
+            title: 'Reset Proxies',
+            message: 'Reset proxy configurations to default presets?',
+            isDestructive: true
+        })
+        if (confirmed) {
             const defaults = await ProxyConfigService.seedDefaultProxies()
             setConfigs(defaults)
             setIsFormOpen(false)

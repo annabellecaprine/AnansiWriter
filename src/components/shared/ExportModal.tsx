@@ -86,7 +86,7 @@ export default function ExportModal({ novelId, projectName, onClose }: { novelId
             <div style={{ background: 'var(--color-surface)', width: '500px', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <header style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
                     <h2 style={{ margin: 0, color: 'var(--color-text)' }}>Advanced Export</h2>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}><XCircle /></button>
+                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }} aria-label="Close"><XCircle /></button>
                 </header>
 
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>

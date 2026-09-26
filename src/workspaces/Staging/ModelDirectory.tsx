@@ -61,7 +61,7 @@ export default function ModelDirectory() {
                         </div>
 
                         <div>
-                            <button className="btn" onClick={() => handleToggle(m.id, !m.isEnabled)} style={{ background: m.isEnabled ? 'var(--color-surface-hover)' : 'var(--color-primary)' }}>
+                            <button className="btn" onClick={() => handleToggle(m.id, !m.isEnabled)} style={{ background: m.isEnabled ? 'var(--color-surface-hover)' : 'var(--color-accent)' }}>
                                 {m.isEnabled ? 'Disable Base' : 'Deploy Mapping'}
                             </button>
                         </div>

@@ -36,7 +36,7 @@ export default function PromptsDashboard() {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'row', height: '100vh', padding: 0, overflow: 'hidden', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', height: '100%', padding: 0, overflow: 'hidden', width: '100%' }}>
             <PromptLibraryPane
                 activePromptId={activePromptId}
                 onSelect={setActivePromptId}

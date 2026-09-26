@@ -76,7 +76,7 @@ export default function DailyHabitHeatmap() {
     }
 
     return (
-        <div className="spike-section" style={{ marginTop: '2rem' }}>
+        <div className="surface-panel" style={{ marginTop: '2rem' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><CalendarDays size={18} /> 365-Day Writing Trajectory</h3>
             <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                 Observe strict chronological momentum. Intense green blocks indicate massive human-edits or structural AI generation instances.

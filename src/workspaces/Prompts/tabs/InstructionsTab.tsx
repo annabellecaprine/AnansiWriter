@@ -54,7 +54,7 @@ export default function InstructionsTab({ activePrompt, reloadPrompts }: { activ
                 </div>
             )}
 
-            <div className="spike-section">
+            <div className="surface-panel">
                 <h3 style={{ marginBottom: '1rem', color: 'var(--color-accent)' }}>System Instruction</h3>
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Defines the rigid persona and operational rules the AI must follow.</p>
                 <textarea
@@ -66,7 +66,7 @@ export default function InstructionsTab({ activePrompt, reloadPrompts }: { activ
                 />
             </div>
 
-            <div className="spike-section">
+            <div className="surface-panel">
                 <h3 style={{ marginBottom: '1rem', color: 'var(--color-accent)' }}>User Template</h3>
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Define dynamic interpolation bindings via <code>{`{{VariableName}}`}</code> for targeted contextual generation.</p>
                 <textarea

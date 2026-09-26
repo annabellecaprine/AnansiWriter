@@ -64,7 +64,11 @@ export default function PromptTestingSandbox() {
             if (variant === 'A') setOutputA(json)
             else setOutputB(json)
         } catch (e: any) {
-            alert(e.message)
+            await confirmAlert({
+                title: 'Assembly Error',
+                message: e.message,
+                isDestructive: true
+            })
         }
     }
 
@@ -110,7 +114,7 @@ export default function PromptTestingSandbox() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,0,0,0.1)', padding: '1rem', borderRadius: '8px' }}>
-                <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-primary)' }}>Execution Variables</h4>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-accent)' }}>Execution Variables</h4>
                 {p.inputs.length === 0 && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No inputs configured.</span>}
                 {p.inputs.map(rule => (
                     <div key={rule.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -132,7 +136,7 @@ export default function PromptTestingSandbox() {
     }
 
     return (
-        <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100vh' }}>
+        <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
             <header>
                 <h2><Sparkles size={20} /> Prompt Testing Sandbox</h2>
                 <p style={{ color: 'var(--color-text-muted)' }}>Non-destructive evaluation arrays spanning logic and latency tracking. Tests use Context Engine bindings for accurate staging.</p>
@@ -142,7 +146,7 @@ export default function PromptTestingSandbox() {
 
                 {/* Variant A */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                    <h3 style={{ borderBottom: '2px solid var(--color-primary)', paddingBottom: '0.5rem' }}>Variant A</h3>
+                    <h3 style={{ borderBottom: '2px solid var(--color-accent)', paddingBottom: '0.5rem' }}>Variant A</h3>
                     <select id="prompt-a" className="input" aria-label="Select Prompt A" value={promptA} onChange={e => setPromptA(e.target.value)}>
                         {prompts.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>

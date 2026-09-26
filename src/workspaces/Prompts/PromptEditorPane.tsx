@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Star, Copy, Trash2, ShieldQuestion, Globe, Lock } from 'lucide-react'
 import type { Prompt, PromptCategory } from '../../db/schema'
 import { PromptService } from '../../services/PromptService'
-import { confirmAction } from '../../store/dialogStore'
+import { confirmAction, confirmAlert } from '../../store/dialogStore'
 import { useNavigate } from 'react-router-dom'
 
 import GeneralTab from './tabs/GeneralTab'
@@ -40,7 +40,11 @@ export default function PromptEditorPane({ activePrompt, categories, reloadPromp
                 await PromptService.softDeletePrompt(activePrompt.id)
                 await reloadPrompts()
             } catch (err: any) {
-                alert(err.message)
+                await confirmAlert({
+                    title: 'Error Deleting Prompt',
+                    message: err.message,
+                    isDestructive: true
+                })
             }
         }
     }
@@ -93,7 +97,7 @@ export default function PromptEditorPane({ activePrompt, categories, reloadPromp
                     <button
                         className="icon-btn"
                         title="Move to Trash"
-                        style={{ color: isSystem ? 'var(--color-text-muted)' : 'var(--color-danger)', opacity: isSystem ? 0.5 : 1 }}
+                        style={{ color: isSystem ? 'var(--color-text-muted)' : 'var(--color-error)', opacity: isSystem ? 0.5 : 1 }}
                         disabled={isSystem}
                         onClick={handleDelete}
                     >
@@ -114,8 +118,8 @@ export default function PromptEditorPane({ activePrompt, categories, reloadPromp
                             padding: '0.75rem 0',
                             fontSize: '1rem',
                             fontWeight: activeTab === tab ? 600 : 400,
-                            color: activeTab === tab ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                            borderBottom: activeTab === tab ? '2px solid var(--color-primary)' : '2px solid transparent',
+                            color: activeTab === tab ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                            borderBottom: activeTab === tab ? '2px solid var(--color-accent)' : '2px solid transparent',
                             cursor: 'pointer',
                             textTransform: 'capitalize'
                         }}

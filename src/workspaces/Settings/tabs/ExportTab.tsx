@@ -70,7 +70,7 @@ export function ExportTab() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'flex-start' }}>
             <div style={{ width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
+                <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-accent)' }}>
                     <Download size={20} /> Advanced Novel Exporter
                 </h3>
                 <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
@@ -116,8 +116,8 @@ export function ExportTab() {
                                 onChange={(e) => setExportFormat(e.target.value as any)}
                                 style={{ display: 'none' }}
                             />
-                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'docx' ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'docx' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                                <FileBadge size={24} color={exportFormat === 'docx' ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
+                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'docx' ? 'var(--color-accent)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'docx' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                                <FileBadge size={24} color={exportFormat === 'docx' ? 'var(--color-accent)' : 'var(--color-text-muted)'} />
                                 <div>
                                     <h4 style={{ margin: '0 0 0.25rem 0', color: exportFormat === 'docx' ? 'var(--color-text)' : 'var(--color-text-muted)' }}>DOCX Manuscript</h4>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Standard Word file natively formatted for submissions.</div>
@@ -134,8 +134,8 @@ export function ExportTab() {
                                 onChange={(e) => setExportFormat(e.target.value as any)}
                                 style={{ display: 'none' }}
                             />
-                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'epub' ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'epub' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                                <BookTemplate size={24} color={exportFormat === 'epub' ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
+                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'epub' ? 'var(--color-accent)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'epub' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                                <BookTemplate size={24} color={exportFormat === 'epub' ? 'var(--color-accent)' : 'var(--color-text-muted)'} />
                                 <div>
                                     <h4 style={{ margin: '0 0 0.25rem 0', color: exportFormat === 'epub' ? 'var(--color-text)' : 'var(--color-text-muted)' }}>ePub Book</h4>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Structured eBook explicitly wrapping your chapters natively.</div>
@@ -152,8 +152,8 @@ export function ExportTab() {
                                 onChange={(e) => setExportFormat(e.target.value as any)}
                                 style={{ display: 'none' }}
                             />
-                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'markdown' ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'markdown' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                                <FileText size={24} color={exportFormat === 'markdown' ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
+                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'markdown' ? 'var(--color-accent)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'markdown' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                                <FileText size={24} color={exportFormat === 'markdown' ? 'var(--color-accent)' : 'var(--color-text-muted)'} />
                                 <div>
                                     <h4 style={{ margin: '0 0 0.25rem 0', color: exportFormat === 'markdown' ? 'var(--color-text)' : 'var(--color-text-muted)' }}>Markdown Manifest</h4>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Linear text file stripped of HTML utilizing typical hashes.</div>
@@ -162,7 +162,7 @@ export function ExportTab() {
                         </label>
                     </div>
 
-                    <div style={{ marginTop: '1rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+                    <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem', display: 'flex', gap: '1rem' }}>
                         <button
                             className="btn primary"
                             onClick={handleExport}

@@ -92,7 +92,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
                         onChange={e => setQuery(e.target.value)}
                         style={{ flex: 1, fontSize: '1.2rem', background: 'transparent', border: 'none', outline: 'none' }}
                     />
-                    <button className="icon-btn" onClick={onClose}><X size={20} /></button>
+                    <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={20} /></button>
                 </div>
 
                 <div style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

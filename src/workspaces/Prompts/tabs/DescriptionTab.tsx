@@ -12,7 +12,7 @@ export default function DescriptionTab({ activePrompt, reloadPrompts }: { active
 
     return (
         <div style={{ padding: '2rem' }}>
-            <div className="spike-section">
+            <div className="surface-panel">
                 <h3 style={{ marginBottom: '1rem', color: 'var(--color-accent)' }}>Prompt Documentation</h3>
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
                     Provide instructions for authors on how and when to use this prompt. This acts as the readme for standardizing project context usage.

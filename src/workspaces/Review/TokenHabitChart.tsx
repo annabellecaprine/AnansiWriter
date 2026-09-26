@@ -60,7 +60,7 @@ export default function TokenHabitChart() {
     }, [activeNovelId]);
 
     return (
-        <div className="spike-section" style={{ marginTop: '2rem' }}>
+        <div className="surface-panel" style={{ marginTop: '2rem' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Zap size={18} /> Resource Burn & Velocity Tracker</h3>
             <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                 Track manual words written plotted explicitly against AI Token expenditure across your novel's structure.
@@ -72,11 +72,11 @@ export default function TokenHabitChart() {
                         <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                             <XAxis dataKey="name" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} style={{ userSelect: 'none' }} />
-                            <YAxis yAxisId="left" orientation="left" stroke="var(--color-primary)" tick={{ fontSize: 11 }} />
+                            <YAxis yAxisId="left" orientation="left" stroke="var(--color-accent)" tick={{ fontSize: 11 }} />
                             <YAxis yAxisId="right" orientation="right" stroke="var(--color-warning)" tick={{ fontSize: 11 }} />
                             <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px' }} />
                             <Legend />
-                            <Bar yAxisId="left" dataKey="words" name="Current Word Count" fill="var(--color-primary)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                            <Bar yAxisId="left" dataKey="words" name="Current Word Count" fill="var(--color-accent)" radius={[4, 4, 0, 0]} opacity={0.8} />
                             <Line yAxisId="right" type="monotone" dataKey="tokens" name="AI Tokens Burned" stroke="var(--color-warning)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                         </ComposedChart>
                     </ResponsiveContainer>

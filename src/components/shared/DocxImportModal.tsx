@@ -67,7 +67,7 @@ export default function DocxImportModal({ novelId, onClose }: { novelId: string,
             <div style={{ background: 'var(--color-surface)', width: '700px', maxHeight: '80vh', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <header style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
                     <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', margin: 0 }}><FileUp /> Word Document Sandbox</h2>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}><XCircle /></button>
+                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }} aria-label="Close"><XCircle /></button>
                 </header>
 
                 <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -85,7 +85,7 @@ export default function DocxImportModal({ novelId, onClose }: { novelId: string,
                                     <strong>{file?.name}</strong>
                                     <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>{preview.length} root nodes detected</div>
                                 </div>
-                                <button className="btn active" onClick={applyData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--color-primary)', color: '#fff' }}><CheckCircle size={16} /> Transactional Apply</button>
+                                <button className="btn active" onClick={applyData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--color-accent)', color: '#fff' }}><CheckCircle size={16} /> Transactional Apply</button>
                             </div>
 
                             <div style={{ background: '#000', padding: '1rem', borderRadius: 'var(--radius-sm)', overflowX: 'auto', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>

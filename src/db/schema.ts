@@ -95,6 +95,7 @@ export interface Scene {
     pov?: string;
     povCharacterId?: string;
     location?: string;
+    cast?: string[]; // Arrays of tracked character UUIDs explicitly mapped to the active scene
     status: SceneStatus;
     wordCount: number;
     targetWordCount?: number;
@@ -103,6 +104,9 @@ export interface Scene {
     labels?: string[];
     planningContent?: object; // TipTap JSON
     narrativePosition?: NarrativePosition;
+    timelineStart?: number; // Universal Narrative epoch bounds
+    timelineEnd?: number;
+    timelineLabel?: string; // UI friendly e.g. "Year 154"
     sortOrder: number;
     isArchived?: boolean;
     archivedAt?: number;
@@ -134,6 +138,7 @@ export interface BibleEntry {
     aliases: string[];
     keywords?: string[];
     description?: string;
+    researchNotes?: string;
 
     // Phase C: AI Override Flags
     alwaysIncludeInContext?: boolean;

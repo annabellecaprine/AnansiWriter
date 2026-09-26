@@ -52,7 +52,7 @@ export const InternalLink = Node.create<InternalLinkOptions>({
                 'data-id': node.attrs.id,
                 'data-type': node.attrs.type,
                 class: 'internal-link-chip',
-                style: 'background: var(--color-surface-hover); color: var(--color-primary); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; cursor: pointer; user-select: none;'
+                style: 'background: var(--color-surface-hover); color: var(--color-accent); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; cursor: pointer; user-select: none;'
             }),
             `@${node.attrs.name}`,
         ]

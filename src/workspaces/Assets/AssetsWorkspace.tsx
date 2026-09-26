@@ -46,8 +46,16 @@ export default function AssetsWorkspace() {
     useEffect(() => {
         const urls: Record<string, string> = {}
         assets.forEach(asset => {
-            if (asset.blob && asset.mimeType?.startsWith('image/')) {
-                urls[asset.id] = URL.createObjectURL(asset.blob)
+            try {
+                if (asset.blob && (asset.mimeType || '').startsWith('image/')) {
+                    let safeBlob = asset.blob
+                    if (!(safeBlob instanceof Blob)) {
+                        safeBlob = new Blob([safeBlob], { type: asset.mimeType })
+                    }
+                    urls[asset.id] = URL.createObjectURL(safeBlob)
+                }
+            } catch (e) {
+                console.error('Failed to create object URL for asset:', asset.id, e)
             }
         })
         setObjectUrls(urls)
@@ -99,8 +107,8 @@ export default function AssetsWorkspace() {
     }
 
     const filteredAssets = assets.filter(a =>
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.mimeType.toLowerCase().includes(searchQuery.toLowerCase())
+        (a.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (a.mimeType || '').toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     if (!activeNovelId) {
@@ -119,7 +127,7 @@ export default function AssetsWorkspace() {
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
                 <div>
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0 }}>
-                        <ImageIcon size={28} color="var(--color-primary)" /> Project Asset Library
+                        <ImageIcon size={28} color="var(--color-accent)" /> Project Asset Library
                     </h1>
                     <p style={{ margin: '0.25rem 0 0 0', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                         Manage images, documents, and visual references bound to your story universe.
@@ -166,12 +174,12 @@ export default function AssetsWorkspace() {
                     if (e.dataTransfer.files) handleFileUpload(e.dataTransfer.files)
                 }}
                 style={{
-                    border: `2px dashed ${dragOver ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    border: `2px dashed ${dragOver ? 'var(--color-accent)' : 'var(--color-border)'}`,
                     borderRadius: 'var(--radius-md)',
                     padding: '1.5rem',
                     textAlign: 'center',
                     marginBottom: '2rem',
-                    background: dragOver ? 'rgba(var(--color-primary-rgb), 0.05)' : 'var(--color-surface)',
+                    background: dragOver ? 'var(--color-surface-hover)' : 'var(--color-surface)',
                     transition: 'all 0.2s ease'
                 }}
             >
@@ -224,7 +232,7 @@ export default function AssetsWorkspace() {
                                             <button
                                                 className="btn"
                                                 onClick={() => { setPreviewAsset(asset); setPreviewUrl(url) }}
-                                                style={{ padding: '0.35rem', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff' }}
+                                                style={{ padding: '0.35rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                                                 title="Preview Asset"
                                                 aria-label="Preview Asset"
                                             >
@@ -234,7 +242,7 @@ export default function AssetsWorkspace() {
                                         <button
                                             className="btn"
                                             onClick={() => handleDeleteAsset(asset.id)}
-                                            style={{ padding: '0.35rem', background: 'rgba(220,53,69,0.8)', border: 'none', color: '#fff' }}
+                                            style={{ padding: '0.35rem', background: 'var(--color-error)', border: '1px solid var(--color-error)', color: '#fff' }}
                                             title="Delete Asset"
                                             aria-label="Delete Asset"
                                         >

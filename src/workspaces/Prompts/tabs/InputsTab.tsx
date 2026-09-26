@@ -125,11 +125,11 @@ export default function InputsTab({ activePrompt, reloadPrompts }: { activePromp
                                 <div style={{ padding: '0.75rem 1rem', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                         <GripVertical size={16} color="var(--color-text-muted)" style={{ cursor: isSystem ? 'not-allowed' : 'move' }} />
-                                        <span style={{ fontWeight: 600, color: rule.kind === 'context' ? 'var(--color-info)' : 'var(--color-primary)' }}>
+                                        <span style={{ fontWeight: 600, color: rule.kind === 'context' ? 'var(--color-info)' : 'var(--color-accent)' }}>
                                             {rule.kind === 'context' ? 'Context Input' : 'Manual Variable'}
                                         </span>
                                     </div>
-                                    <button className="icon-btn" disabled={isSystem} onClick={() => removeRule(idx)} style={{ color: 'var(--color-danger)' }}>
+                                    <button className="icon-btn" disabled={isSystem} onClick={() => removeRule(idx)} style={{ color: 'var(--color-error)' }}>
                                         <Trash2 size={16} />
                                     </button>
                                 </div>
@@ -326,7 +326,7 @@ export default function InputsTab({ activePrompt, reloadPrompts }: { activePromp
 
             {/* Live Input Preview Sidebar */}
             <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', alignSelf: 'start', position: 'sticky', top: '1rem' }}>
-                <h4 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
+                <h4 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-accent)' }}>
                     <Activity size={16} /> Input Preview
                 </h4>
                 <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
@@ -344,7 +344,7 @@ export default function InputsTab({ activePrompt, reloadPrompts }: { activePromp
                                 <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)', marginBottom: '0.2rem' }}>
                                     {rule.name}
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-title)', display: 'flex', justifyContent: 'space-between' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text)', display: 'flex', justifyContent: 'space-between' }}>
                                     {rule.kind === 'context' ? (
                                         <span>
                                             {rule.type === 'CurrentScene' && 'Chapter 4 / Scene 3'}

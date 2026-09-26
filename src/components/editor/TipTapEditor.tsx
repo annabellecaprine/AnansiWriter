@@ -174,8 +174,46 @@ export default function TipTapEditor({ content, onUpdate, focusMode = false }: {
             )}
 
             {/* Canvas */}
-            <div style={{ flex: 1, padding: '1rem', overflowY: 'auto' }}>
-                <EditorContent editor={editor} style={{ outline: 'none', minHeight: '100%', fontSize: '1rem', lineHeight: '1.6' }} />
+            <div
+                style={{
+                    flex: 1,
+                    padding: '2.5rem 1rem',
+                    overflowY: 'auto',
+                    background: 'var(--color-bg)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    cursor: 'text'
+                }}
+                onClick={(e) => {
+                    // Prevent stealing focus if user clicked a link or button inside the editor
+                    if ((e.target as HTMLElement).tagName !== 'A' && (e.target as HTMLElement).tagName !== 'BUTTON') {
+                        editor.chain().focus().run()
+                    }
+                }}
+            >
+                <div style={{
+                    width: '100%',
+                    maxWidth: '850px',
+                    background: 'var(--color-surface)',
+                    padding: '4rem 5rem',
+                    borderRadius: 'var(--radius-lg)',
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                    minHeight: '75vh',
+                    fontSize: '1.15rem',
+                    lineHeight: '1.75',
+                    color: 'var(--color-text)'
+                }}>
+                    <style>{`
+                        .anansi-editor .ProseMirror {
+                            min-height: 100%;
+                            outline: none;
+                        }
+                        .anansi-editor .ProseMirror p {
+                            margin-bottom: 1.25em;
+                        }
+                    `}</style>
+                    <EditorContent editor={editor} className="anansi-editor" />
+                </div>
             </div>
         </div>
     )

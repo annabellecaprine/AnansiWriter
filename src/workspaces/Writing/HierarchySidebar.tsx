@@ -16,7 +16,7 @@ import { WritingService, type HierarchyNode } from '../../services/WritingServic
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { SortableItem } from '../../components/shared/SortableItem'
 import { db } from '../../db/database'
-import { FileText, Folder, BookOpen, Layers, Target, Plus, Trash2, Edit2 } from 'lucide-react'
+import { FileText, Folder, BookOpen, Layers, Target, Plus, Trash2, Edit2, Search } from 'lucide-react'
 
 import { confirmAlert, confirmAction, promptInput } from '../../store/dialogStore'
 
@@ -128,14 +128,14 @@ export default function HierarchySidebar() {
                         padding: '0.4rem 0.6rem',
                         borderRadius: 'var(--radius-sm)',
                         background: isSelected ? 'var(--color-surface-hover)' : 'transparent',
-                        borderLeft: isSelected ? '3px solid var(--color-primary)' : '3px solid transparent',
+                        borderLeft: isSelected ? '3px solid var(--color-accent)' : '3px solid transparent',
                         cursor: 'pointer',
                         fontSize: '0.85rem'
                     }}
                     onClick={() => node.type === 'Scene' ? setActiveScene(node.id) : null}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, overflow: 'hidden' }}>
-                        {node.type === 'Series' && <Layers size={14} color="var(--color-primary)" />}
+                        {node.type === 'Series' && <Layers size={14} color="var(--color-accent)" />}
                         {node.type === 'Novel' && <BookOpen size={14} color="#17a2b8" />}
                         {node.type === 'Act' && <Target size={14} color="#ffc107" />}
                         {node.type === 'Chapter' && <Folder size={14} color="#fd7e14" />}
@@ -228,15 +228,26 @@ export default function HierarchySidebar() {
         >
             <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Manuscript Explorer</h3>
-                <button
-                    className="btn primary"
-                    onClick={handleCreateChapter}
-                    style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                    title="Add Chapter to Book"
-                    aria-label="Add Chapter"
-                >
-                    <Plus size={13} /> + Chapter
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <button
+                        className="btn"
+                        onClick={() => useWorkspaceStore.getState().toggleSearchModal()}
+                        style={{ padding: '0.4rem', color: 'var(--color-text-muted)' }}
+                        title="Global Search & Replace (Ctrl+Shift+F)"
+                        aria-label="Search Manuscript"
+                    >
+                        <Search size={14} />
+                    </button>
+                    <button
+                        className="btn primary"
+                        onClick={handleCreateChapter}
+                        style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        title="Add Chapter to Book"
+                        aria-label="Add Chapter"
+                    >
+                        <Plus size={13} /> + Chapter
+                    </button>
+                </div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 0.5rem' }}>

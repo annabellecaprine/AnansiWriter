@@ -77,7 +77,7 @@ export default function GeneralTab({ activePrompt, reloadPrompts, categories }: 
 
     return (
         <div style={{ padding: '2rem' }}>
-            <div className="spike-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div className="surface-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
 
                 {/* Core Metadata */}
                 <div>
@@ -110,7 +110,7 @@ export default function GeneralTab({ activePrompt, reloadPrompts, categories }: 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
                             <label style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Category</label>
                             {!isSystem && (
-                                <button className="icon-btn" style={{ fontSize: '0.8rem', color: 'var(--color-primary)', padding: 0 }} onClick={handleCreateCategory}>
+                                <button className="icon-btn" style={{ fontSize: '0.8rem', color: 'var(--color-accent)', padding: 0 }} onClick={handleCreateCategory}>
                                     + Add New Category
                                 </button>
                             )}

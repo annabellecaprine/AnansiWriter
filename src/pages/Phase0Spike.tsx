@@ -126,7 +126,7 @@ export default function Phase0Spike() {
             </p>
 
             {/* ── Test 1: Hash Routing ─────────────────────────── */}
-            <div className="spike-section">
+            <div className="surface-panel">
                 <h2>
                     Test 1 — Hash Routing
                     <span className={badgeClass(routingPassed ? 'pass' : 'fail')}>
@@ -156,7 +156,7 @@ export default function Phase0Spike() {
             </div>
 
             {/* ── Test 2: Chutes CORS ───────────────────────────── */}
-            <div className="spike-section">
+            <div className="surface-panel">
                 <h2>
                     Test 2 — Chutes Browser CORS
                     <span className={badgeClass(chutes.status)}>
@@ -252,7 +252,7 @@ export default function Phase0Spike() {
             </div>
 
             {/* ── Overall Summary ───────────────────────────────── */}
-            <div className="spike-section">
+            <div className="surface-panel">
                 <h2>Overall Gate</h2>
                 <ul className="checklist">
                     <li>

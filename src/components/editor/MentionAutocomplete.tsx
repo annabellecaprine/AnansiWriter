@@ -103,7 +103,7 @@ export default function MentionAutocomplete({ novelId, query, onSelect, onClose 
                             style={{
                                 padding: '0.5rem 0.75rem',
                                 background: isSelected ? 'var(--color-bg)' : 'transparent',
-                                borderLeft: `3px solid ${isSelected ? 'var(--color-primary)' : 'transparent'}`,
+                                borderLeft: `3px solid ${isSelected ? 'var(--color-accent)' : 'transparent'}`,
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -112,7 +112,7 @@ export default function MentionAutocomplete({ novelId, query, onSelect, onClose 
                             }}
                         >
                             <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: isSelected ? 600 : 400 }}>
-                                {entry.type === 'Character' && <User size={14} color="var(--color-primary)" />}
+                                {entry.type === 'Character' && <User size={14} color="var(--color-accent)" />}
                                 {entry.type === 'Location' && <MapPin size={14} color="#28a745" />}
                                 {entry.type !== 'Character' && entry.type !== 'Location' && <Tag size={14} color="#ffc107" />}
                                 {entry.name}

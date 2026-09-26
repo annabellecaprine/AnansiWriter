@@ -69,7 +69,7 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
             </header>
 
             <div style={{ maxWidth: '800px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div className="spike-section">
+                <div className="surface-panel">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                         <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <ImageIcon size={18} />
@@ -102,7 +102,7 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
                     )}
                 </div>
 
-                <div className="spike-section">
+                <div className="surface-panel">
                     <h3 style={{ marginBottom: '1rem' }}>Aliases & Tags</h3>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <input type="text" placeholder="Add an alias..." defaultValue={entry.aliases.join(', ')} style={{ flex: 1 }} />
@@ -110,7 +110,7 @@ export default function BibleEntryEditor({ entryId, onBack }: { entryId: string,
                     </div>
                 </div>
 
-                <div className="spike-section">
+                <div className="surface-panel">
                     <h3 style={{ marginBottom: '1rem' }}>Attributes</h3>
                     {fields.length === 0 ? (
                         <p style={{ color: 'var(--color-text-muted)' }}>No fields defined yet. Select a template to populate.</p>

@@ -53,14 +53,14 @@ export default function InferenceTelemetry() {
     const viewing = history.find(h => h.id === selectedId)
 
     return (
-        <div style={{ padding: '2rem', display: 'flex', gap: '2rem', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ padding: '2rem', display: 'flex', gap: '2rem', height: '100%', overflow: 'hidden' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
                 <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Activity /> Inference Telemetry</h2>
                     <button className="btn" onClick={clearHistory}>Clear Metrics</button>
                 </header>
 
-                <div className="spike-section" style={{ display: 'grid', gap: '0.5rem' }}>
+                <div className="surface-panel" style={{ display: 'grid', gap: '0.5rem' }}>
                     {history.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>No inference telemetry logged yet.</p>}
                     {history.map(h => (
                         <div key={h.id}

@@ -136,11 +136,11 @@ export default function StagingSandbox() {
     }
 
     return (
-        <div style={{ padding: '2rem', display: 'flex', gap: '2rem', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ padding: '2rem', display: 'flex', gap: '2rem', height: '100%', overflow: 'hidden' }}>
 
             {/* Sidebar Context Maps */}
             <div style={{ width: '350px', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                <div className="spike-section">
+                <div className="surface-panel">
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Crosshair size={18} /> Non-Canon Sandbox</h3>
                     <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Experiments here do not affect your manuscript organically.</p>
 
@@ -167,13 +167,13 @@ export default function StagingSandbox() {
 
                 <header style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
                     <h4>Interview Session</h4>
-                    <button className="btn" onClick={promoteToCanon} style={{ color: 'var(--color-primary)' }}><ArrowRightCircle size={16} /> Promote Insight</button>
+                    <button className="btn" onClick={promoteToCanon} style={{ color: 'var(--color-accent)' }}><ArrowRightCircle size={16} /> Promote Insight</button>
                 </header>
 
                 <div style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {messages.length === 0 && <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '2rem' }}>Sandbox initialized. System is completely isolated from Canon arrays. Send a message to begin.</p>}
                     {messages.map((m, idx) => (
-                        <div key={idx} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? 'var(--color-primary)' : 'var(--color-bg)', padding: '1rem', borderRadius: 'var(--radius-md)', maxWidth: '80%' }}>
+                        <div key={idx} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg)', padding: '1rem', borderRadius: 'var(--radius-md)', maxWidth: '80%' }}>
                             <strong style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem', color: m.role === 'user' ? 'rgba(255,255,255,0.7)' : 'var(--color-text-muted)' }}>{m.role.toUpperCase()}</strong>
                             <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
                         </div>

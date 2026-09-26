@@ -54,7 +54,7 @@ export default function NovelBreadcrumb() {
                         {sep}
                     </>
                 )}
-                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '240px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '240px' }}>
                     {novelTitle}
                 </span>
             </div>

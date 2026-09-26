@@ -109,7 +109,7 @@ export default function CommandPalette() {
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                     <span style={{ padding: '0.2rem 0.5rem', background: 'var(--color-bg)', borderRadius: '4px' }}>{r.type}</span>
-                                    <span style={{ color: 'var(--color-primary)' }}>{r.action}</span>
+                                    <span style={{ color: 'var(--color-accent)' }}>{r.action}</span>
                                 </div>
                             </div>
                         ))

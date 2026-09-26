@@ -64,7 +64,7 @@ export default function PlanningEditor({ itemId, type, onClose }: PlanningEditor
                     <ChevronLeft size={16} />
                 </button>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{type} Planning</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '1px' }}>{type} Planning</div>
                     <h2 style={{ fontSize: '1rem', margin: 0, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {activeItem?.title || activeItem?.name || 'Loading...'}
                     </h2>

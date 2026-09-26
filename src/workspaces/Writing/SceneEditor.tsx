@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import { InternalLink } from '../../components/editor/extensions/InternalLink'
+import { LiveCodexHighlight } from '../../components/editor/extensions/LiveCodexHighlight'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { WritingService } from '../../services/WritingService'
 import { db } from '../../db/database'
@@ -28,11 +29,13 @@ const getEditorExtensions = () => [
         heading: { levels: [1, 2, 3] }
     }),
     Underline,
-    InternalLink
+    InternalLink,
+    LiveCodexHighlight
 ]
 
 export default function SceneEditor() {
-    const { activeSceneId, activeNovelId, isRightPaneOpen, toggleRightPane, isLeftPaneOpen, toggleLeftPane } = useWorkspaceStore()
+    const { activeSceneId, activeNovelId, isRightPaneOpen, toggleRightPane, isLeftPaneOpen, toggleLeftPane, addDailyWords } = useWorkspaceStore()
+    const lastWordCountRef = useRef(0)
     const [sceneTitle, setSceneTitle] = useState('')
     const [wordCount, setWordCount] = useState(0)
     const [targetWordCount, setTargetWordCount] = useState(1000)
@@ -64,6 +67,16 @@ export default function SceneEditor() {
             const json = editor.getJSON()
             const text = editor.getText()
             const words = text.split(/\s+/).filter(Boolean).length
+
+            const diff = words - lastWordCountRef.current
+            if (diff !== 0) {
+                // Ignore enormous pasting spikes/wipes as anomalies (e.g. replacing whole chapters)
+                if (Math.abs(diff) < 2000) {
+                    addDailyWords(diff)
+                }
+                lastWordCountRef.current = words
+            }
+
             setWordCount(words)
 
             // Detect '+' codex quick-reference typing
@@ -126,7 +139,9 @@ export default function SceneEditor() {
             if (editor) {
                 editor.commands.setContent(content, { emitUpdate: false })
                 const text = editor.getText()
-                setWordCount(text.split(/\s+/).filter(Boolean).length)
+                const wc = text.split(/\s+/).filter(Boolean).length
+                setWordCount(wc)
+                lastWordCountRef.current = wc
             }
 
             // Sync structural selection upward for ContextInspector
@@ -138,6 +153,20 @@ export default function SceneEditor() {
 
         return () => { mounted = false }
     }, [activeSceneId, editor])
+
+    // Sync Codex Highlight targets automatically
+    useEffect(() => {
+        if (!activeNovelId || !editor) return
+        let mounted = true
+        db.bibleEntries.where({ novelId: activeNovelId }).toArray().then(entries => {
+            if (!mounted) return
+            // Sort to ensure longer phrases match first, avoiding partial shadows!
+            entries.sort((a, b) => b.name.length - a.name.length)
+                ; (editor.storage as any).codexHighlight.entries = entries
+            editor.view.dispatch(editor.state.tr.setMeta('codexHighlightUpdate', true))
+        })
+        return () => { mounted = false }
+    }, [activeNovelId, editor])
 
     const handleTitleChange = async (newTitle: string) => {
         setSceneTitle(newTitle)
@@ -284,7 +313,7 @@ export default function SceneEditor() {
                                 }}
                                 placeholder="Scene Title..."
                             />
-                            <span style={{ fontSize: '0.75rem', color: isAutosaving ? 'var(--color-primary)' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span style={{ fontSize: '0.75rem', color: isAutosaving ? 'var(--color-accent)' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                 <Save size={12} /> {isAutosaving ? 'Saving...' : 'Saved'}
                             </span>
                             <button
@@ -318,7 +347,7 @@ export default function SceneEditor() {
                                     <span>{targetWordCount} target</span>
                                 </div>
                                 <div style={{ height: '6px', background: 'var(--color-bg)', borderRadius: '3px', overflow: 'hidden' }}>
-                                    <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s ease' }} />
+                                    <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--color-accent)', transition: 'width 0.3s ease' }} />
                                 </div>
                             </div>
 
@@ -517,7 +546,24 @@ export default function SceneEditor() {
                 )}
 
                 {/* Main Scrollable Canvas Area */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: isFocusMode ? '3rem 2rem' : '2rem', display: 'flex', justifyContent: 'center', background: isFocusMode ? '#0a0a0c' : 'var(--color-bg)' }}>
+                <div
+                    style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: isFocusMode ? '3rem 2rem' : '2rem',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        background: 'var(--color-bg)',
+                        cursor: 'text'
+                    }}
+                    onClick={(e) => {
+                        if (!editor) return
+                        const target = e.target as HTMLElement
+                        if (target.tagName !== 'A' && target.tagName !== 'BUTTON' && !target.closest('.internal-link')) {
+                            editor.chain().focus().run()
+                        }
+                    }}
+                >
                     <div
                         style={{
                             maxWidth: isFocusMode ? '720px' : '820px',
@@ -528,10 +574,20 @@ export default function SceneEditor() {
                             borderRadius: 'var(--radius-md)',
                             boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                             border: '1px solid var(--color-border)',
-                            position: 'relative'
+                            position: 'relative',
+                            color: 'var(--color-text)'
                         }}
                     >
-                        <EditorContent editor={editor} style={{ outline: 'none', minHeight: '650px', fontSize: '1.05rem', lineHeight: '1.8' }} />
+                        <style>{`
+                            .anansi-scene-editor .ProseMirror {
+                                min-height: 700px;
+                                outline: none;
+                            }
+                            .anansi-scene-editor .ProseMirror p {
+                                margin-bottom: 1.25em;
+                            }
+                        `}</style>
+                        <EditorContent editor={editor} className="anansi-scene-editor" style={{ fontSize: '1.15rem', lineHeight: '1.8' }} />
 
                         {/* Floating Mention Autocomplete Popover */}
                         {showMentionMenu && activeNovelId && (

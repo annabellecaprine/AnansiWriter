@@ -35,7 +35,7 @@ export default function ReferencedByPanel({ entryId, novelId }: { entryId: strin
     if (occurrences.length === 0) return null
 
     return (
-        <div className="spike-section">
+        <div className="surface-panel">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><MapPin size={18} /> Referenced By</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {occurrences.map(o => (

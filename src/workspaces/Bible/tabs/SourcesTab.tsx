@@ -1,8 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import ReferencedByPanel from '../ReferencedByPanel'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, ExternalLink } from 'lucide-react'
+import { BibleService } from '../../../services/BibleService'
 
-export default function SourcesTab({ entryId, fields }: { entryId: string, fields: any[] }) {
+export default function SourcesTab({ entry, fields, onUpdated }: { entry: any, fields: any[], onUpdated: () => void }) {
+    const [notes, setNotes] = useState(entry.researchNotes || '')
+
+    const handleSaveNotes = async () => {
+        if (notes !== entry.researchNotes) {
+            await BibleService.updateEntry(entry.novelId, entry.id, { researchNotes: notes })
+            onUpdated()
+        }
+    }
 
     // Aggregate provenance data across all fields
     const factsWithProvenance = useMemo(() => {
@@ -12,6 +21,24 @@ export default function SourcesTab({ entryId, fields }: { entryId: string, field
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem', maxWidth: '800px' }}>
 
+            {/* External References / Research Notes */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <ExternalLink size={18} /> Research Notes & External References
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                    Store external links, historical context, or general research notes that inform this entry.
+                </p>
+                <textarea
+                    className="input"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    onBlur={handleSaveNotes}
+                    placeholder="E.g., Based on 19th-century locomotive schematics... Link: https://wikipedia..."
+                    style={{ minHeight: '150px', resize: 'vertical', fontSize: '0.9rem', padding: '0.75rem', lineHeight: '1.5' }}
+                />
+            </div>
+
             {/* Field-level Provenance */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -19,7 +46,7 @@ export default function SourcesTab({ entryId, fields }: { entryId: string, field
                 </h3>
 
                 {factsWithProvenance.length === 0 ? (
-                    <p style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No fields explicitly establish provenance to a source scene.</p>
+                    <p style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>No fields explicitly establish provenance to a source scene.</p>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {factsWithProvenance.map(f => (
@@ -34,7 +61,6 @@ export default function SourcesTab({ entryId, fields }: { entryId: string, field
                                     <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.9rem' }}>
                                         {f.provenance.map((provId: string) => (
                                             <li key={provId}>
-                                                {/* In a real scenario, this would be a link mapping provId back to its actual document name via lookup */}
                                                 <a href={`#/writing/${provId}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>
                                                     Source ID: {provId.slice(0, 8)}...
                                                 </a>
@@ -54,8 +80,7 @@ export default function SourcesTab({ entryId, fields }: { entryId: string, field
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', margin: 0 }}>
                     Scenes mapped automatically by explicitly linking this entity or through heuristic queue confirmations.
                 </p>
-                {/* Embedded global ReferencedByPanel from old code. It usually queries Occurrence table or scenes. */}
-                <ReferencedByPanel entryId={entryId} novelId={fields?.[0]?.novelId || ''} />
+                <ReferencedByPanel entryId={entry.id} novelId={entry.novelId || ''} />
             </div>
 
         </div>

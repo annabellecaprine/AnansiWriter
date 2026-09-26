@@ -14,7 +14,7 @@ interface SceneInspectorProps {
 }
 
 export default function ContextInspector({ sceneId, editorContent, onClose, onRestoreRevision, initialTab }: SceneInspectorProps) {
-    const { activeNovelId, activeChapterId } = useWorkspaceStore()
+    const { activeNovelId, activeChapterId, showSprintHUD, setShowSprintHUD } = useWorkspaceStore()
     const navigate = useNavigate()
     const [masterScope, setMasterScope] = useState<'scene' | 'chapter' | 'codex' | 'ai'>('scene')
     const [activeTab, setActiveTab] = useState<'backlinks' | 'beats' | 'revisions'>(initialTab || 'backlinks')
@@ -31,9 +31,15 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
     const [status, setStatus] = useState<'Idea' | 'Planned' | 'Draft' | 'Revised' | 'Edited' | 'Final'>('Draft')
     const [povCharacterId, setPovCharacterId] = useState('')
     const [location, setLocation] = useState('')
+    const [timelineStart, setTimelineStart] = useState<number | ''>('')
+    const [timelineEnd, setTimelineEnd] = useState<number | ''>('')
+    const [timelineLabel, setTimelineLabel] = useState('')
     const [notes, setNotes] = useState<string[]>([])
     const [newNote, setNewNote] = useState('')
     const [characters, setCharacters] = useState<any[]>([])
+    const [cast, setCast] = useState<string[]>([])
+    const [castQuery, setCastQuery] = useState('')
+    const [isCastFocused, setIsCastFocused] = useState(false)
 
     // Revisions state
     const [revisions, setRevisions] = useState<any[]>([])
@@ -57,13 +63,17 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
             setStatus((scene.status as any) || 'Draft')
             setPovCharacterId(scene.povCharacterId || '')
             setLocation(scene.location || '')
+            setTimelineStart(scene.timelineStart ?? '')
+            setTimelineEnd(scene.timelineEnd ?? '')
+            setTimelineLabel(scene.timelineLabel || '')
             const rawNotes = scene.notes
             setNotes(Array.isArray(rawNotes) ? rawNotes : (typeof rawNotes === 'string' && rawNotes.length ? [rawNotes] : []))
+            setCast(scene.cast || [])
         })
 
         if (activeNovelId) {
             db.bibleEntries.where({ novelId: activeNovelId }).toArray().then(entries => {
-                if (mounted) setCharacters(entries.filter(e => e.type === 'Character'))
+                if (mounted) setCharacters(entries.filter(e => e.type?.toLowerCase() === 'character'))
             })
             db.prompts.where({ novelId: activeNovelId }).filter(p => !p.isTrashed).toArray().then(p => {
                 if (mounted) setPrompts(p)
@@ -123,6 +133,9 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
             status,
             povCharacterId,
             location,
+            timelineStart: timelineStart === '' ? undefined : timelineStart,
+            timelineEnd: timelineEnd === '' ? undefined : timelineEnd,
+            timelineLabel,
             notes,
             updatedAt: Date.now()
         })
@@ -172,7 +185,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                             style={{
                                 fontSize: '0.8rem', padding: '0.2rem 0.5rem', border: 'none',
                                 background: masterScope === 'scene' ? 'var(--color-surface)' : 'transparent',
-                                color: masterScope === 'scene' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: masterScope === 'scene' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 fontWeight: masterScope === 'scene' ? 600 : 400
                             }}
                         >
@@ -184,7 +197,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                             style={{
                                 fontSize: '0.8rem', padding: '0.2rem 0.5rem', border: 'none',
                                 background: masterScope === 'chapter' ? 'var(--color-surface)' : 'transparent',
-                                color: masterScope === 'chapter' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: masterScope === 'chapter' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 fontWeight: masterScope === 'chapter' ? 600 : 400
                             }}
                             disabled={!activeChapterId}
@@ -197,7 +210,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                             style={{
                                 fontSize: '0.8rem', padding: '0.2rem 0.5rem', border: 'none',
                                 background: masterScope === 'codex' ? 'var(--color-surface)' : 'transparent',
-                                color: masterScope === 'codex' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: masterScope === 'codex' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 fontWeight: masterScope === 'codex' ? 600 : 400
                             }}
                         >
@@ -209,7 +222,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                             style={{
                                 fontSize: '0.8rem', padding: '0.2rem 0.5rem', border: 'none',
                                 background: masterScope === 'ai' ? 'var(--color-surface)' : 'transparent',
-                                color: masterScope === 'ai' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: masterScope === 'ai' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 fontWeight: masterScope === 'ai' ? 600 : 400
                             }}
                         >
@@ -232,7 +245,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                 fontSize: '0.75rem',
                                 padding: '0.35rem',
                                 background: activeTab === 'backlinks' ? 'var(--color-surface)' : 'transparent',
-                                color: activeTab === 'backlinks' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: activeTab === 'backlinks' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 border: 'none',
                                 fontWeight: activeTab === 'backlinks' ? 600 : 400
                             }}
@@ -247,7 +260,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                 fontSize: '0.75rem',
                                 padding: '0.35rem',
                                 background: activeTab === 'beats' ? 'var(--color-surface)' : 'transparent',
-                                color: activeTab === 'beats' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: activeTab === 'beats' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 border: 'none',
                                 fontWeight: activeTab === 'beats' ? 600 : 400
                             }}
@@ -262,7 +275,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                 fontSize: '0.75rem',
                                 padding: '0.35rem',
                                 background: activeTab === 'revisions' ? 'var(--color-surface)' : 'transparent',
-                                color: activeTab === 'revisions' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                color: activeTab === 'revisions' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                                 border: 'none',
                                 fontWeight: activeTab === 'revisions' ? 600 : 400
                             }}
@@ -295,7 +308,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                 {masterScope === 'scene' && activeTab === 'backlinks' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
-                            Entities referenced in this scene via <code style={{ color: 'var(--color-primary)' }}>@mentions</code>:
+                            Entities referenced in this scene via <code style={{ color: 'var(--color-accent)' }}>@mentions</code>:
                         </div>
 
                         {referencedEntries.length === 0 ? (
@@ -320,9 +333,9 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                            {entry.type === 'Character' && <User size={14} color="var(--color-primary)" />}
-                                            {entry.type === 'Location' && <MapPin size={14} color="#28a745" />}
-                                            {entry.type !== 'Character' && entry.type !== 'Location' && <Tag size={14} color="#ffc107" />}
+                                            {entry.type === 'Character' && <User size={14} color="var(--color-accent)" />}
+                                            {entry.type === 'Location' && <MapPin size={14} color="var(--color-success)" />}
+                                            {entry.type !== 'Character' && entry.type !== 'Location' && <Tag size={14} color="var(--color-warning)" />}
                                             {entry.name}
                                         </span>
                                         <span style={{ fontSize: '0.7rem', background: 'var(--color-surface)', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid var(--color-border)' }}>
@@ -330,7 +343,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                         </span>
                                     </div>
                                     {entry.role && (
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-primary)' }}>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-accent)' }}>
                                             Role: {entry.role}
                                         </div>
                                     )}
@@ -406,6 +419,84 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                             </div>
                         </div>
 
+                        {/* Scene Cast (Explicit Analytic Mapping) */}
+                        <div style={{ position: 'relative' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Scene Cast</span>
+                                <span style={{ color: 'var(--color-accent)', fontWeight: 'normal' }}>{cast.length} present</span>
+                            </label>
+
+                            <input
+                                type="text"
+                                className="input"
+                                placeholder="Search to add character..."
+                                value={castQuery}
+                                onChange={e => setCastQuery(e.target.value)}
+                                onFocus={() => setIsCastFocused(true)}
+                                onBlur={() => setTimeout(() => setIsCastFocused(false), 150)}
+                                style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem', marginBottom: '0.5rem' }}
+                            />
+
+                            {isCastFocused && castQuery && (
+                                <div style={{
+                                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                                    borderRadius: 'var(--radius-sm)', maxHeight: '150px', overflowY: 'auto',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                }}>
+                                    {characters
+                                        .filter(c => !cast.includes(c.id))
+                                        .filter(c => c.name.toLowerCase().includes(castQuery.toLowerCase()) || c.aliases?.some((a: string) => a.toLowerCase().includes(castQuery.toLowerCase())))
+                                        .map(c => (
+                                            <div
+                                                key={c.id}
+                                                onClick={() => {
+                                                    const updated = [...cast, c.id]
+                                                    setCast(updated)
+                                                    setCastQuery('')
+                                                    db.scenes.update(sceneId, { cast: updated, updatedAt: Date.now() })
+                                                }}
+                                                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}
+                                            >
+                                                {c.name}
+                                            </div>
+                                        ))}
+                                    {characters.filter(c => !cast.includes(c.id) && (c.name.toLowerCase().includes(castQuery.toLowerCase()) || c.aliases?.some((a: string) => a.toLowerCase().includes(castQuery.toLowerCase())))).length === 0 && (
+                                        <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No matches found</div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                {cast.map(id => {
+                                    const c = characters.find(ch => ch.id === id)
+                                    if (!c) return null
+                                    return (
+                                        <div key={id} style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                                            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                                            padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem'
+                                        }}>
+                                            <User size={10} color="var(--color-accent)" />
+                                            {c.name}
+                                            <button
+                                                className="btn"
+                                                onClick={() => {
+                                                    const updated = cast.filter(cId => cId !== id)
+                                                    setCast(updated)
+                                                    db.scenes.update(sceneId, { cast: updated, updatedAt: Date.now() })
+                                                }}
+                                                style={{ border: 'none', padding: '0.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', marginLeft: '0.2rem', color: 'var(--color-warning)' }}
+                                                title="Remove Character"
+                                            >
+                                                <X size={10} />
+                                            </button>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
                         {/* Synopsis */}
                         <div>
                             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Scene Synopsis</label>
@@ -457,7 +548,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                         <button
                                             className="btn"
                                             onClick={() => handleDeleteNote(idx)}
-                                            style={{ padding: '0.15rem 0.3rem', color: '#dc3545', border: 'none' }}
+                                            style={{ padding: '0.15rem 0.3rem', color: 'var(--color-warning)', border: 'none' }}
                                             title="Delete Note"
                                         >
                                             <Trash2 size={12} />
@@ -465,6 +556,68 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                     </div>
                                 ))}
                             </div>
+                        </div>
+
+                        <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.25rem 0' }} />
+
+                        {/* Chronology Bounds */}
+                        <div>
+                            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                                Chronology Bounds
+                                <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>Feature E</span>
+                            </label>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>Start (Numeric)</label>
+                                    <input
+                                        type="number"
+                                        className="input"
+                                        style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem' }}
+                                        placeholder="e.g. 1999"
+                                        value={timelineStart}
+                                        onChange={(e) => setTimelineStart(e.target.value === '' ? '' : Number(e.target.value))}
+                                        onBlur={handleSaveMetadata}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>End (Optional)</label>
+                                    <input
+                                        type="number"
+                                        className="input"
+                                        style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem' }}
+                                        placeholder="e.g. 2004"
+                                        value={timelineEnd}
+                                        onChange={(e) => setTimelineEnd(e.target.value === '' ? '' : Number(e.target.value))}
+                                        onBlur={handleSaveMetadata}
+                                    />
+                                </div>
+                            </div>
+
+                            <input
+                                type="text"
+                                className="input"
+                                style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem' }}
+                                placeholder="Semantic Label (e.g. 'October 3rd, Morning')"
+                                value={timelineLabel}
+                                onChange={(e) => setTimelineLabel(e.target.value)}
+                                onBlur={handleSaveMetadata}
+                            />
+                        </div>
+
+                        <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.5rem 0' }} />
+
+                        {/* Workspace Preferences */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem' }}>Workspace Layout</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--color-text)' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={showSprintHUD}
+                                    onChange={(e) => setShowSprintHUD(e.target.checked)}
+                                />
+                                Show Sprint & Target HUD
+                            </label>
                         </div>
                     </div>
                 )}
@@ -486,7 +639,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                     style={{
                                         padding: '0.75rem',
                                         background: selectedRevision?.id === rev.id ? 'var(--color-bg)' : 'var(--color-surface)',
-                                        border: `1px solid ${selectedRevision?.id === rev.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                        border: `1px solid ${selectedRevision?.id === rev.id ? 'var(--color-accent)' : 'var(--color-border)'}`,
                                         borderRadius: 'var(--radius-sm)',
                                         cursor: 'pointer'
                                     }}

@@ -80,7 +80,7 @@ export default function RelationshipsPanel({ entryId }: { entryId: string }) {
     }
 
     return (
-        <div className="spike-section">
+        <div className="surface-panel">
             <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Link2 size={18} />
                 Relationships

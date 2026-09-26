@@ -109,7 +109,7 @@ export default function NovelMetadataModal({ novelId, onClose, onSaved }: Props)
             <div style={{ background: 'var(--color-bg)', padding: '2rem', borderRadius: 'var(--radius-lg)', width: '700px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto', border: '1px solid var(--color-border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Edit Novel Metadata</h2>
-                    <button className="icon-btn" onClick={onClose}><X size={20} /></button>
+                    <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={20} /></button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '2rem' }}>
@@ -165,7 +165,7 @@ export default function NovelMetadataModal({ novelId, onClose, onSaved }: Props)
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
                     <button className="btn" onClick={onClose} style={{ background: 'var(--color-surface)' }}>Cancel</button>
-                    <button className="btn" onClick={handleSave} style={{ background: 'var(--color-primary)' }}>Save Metadata</button>
+                    <button className="btn" onClick={handleSave} style={{ background: 'var(--color-accent)' }}>Save Metadata</button>
                 </div>
             </div>
         </div>

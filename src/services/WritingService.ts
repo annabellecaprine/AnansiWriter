@@ -187,4 +187,95 @@ export class WritingService {
             createdAt: Date.now()
         })
     }
+
+    /**
+     * Cross-Scene AST Search Strategy
+     */
+    static async searchNovelText(novelId: string, query: string, matchCase: boolean = false): Promise<{ sceneId: string, sceneName: string, snippet: string }[]> {
+        const scenes = await db.scenes.where({ novelId }).toArray()
+        const results: { sceneId: string, sceneName: string, snippet: string }[] = []
+
+        if (!query.trim()) return results
+
+        const flags = matchCase ? 'g' : 'gi'
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, flags)
+
+        for (const s of scenes) {
+            const extractText = (node: any): string => {
+                if (!node) return ''
+                if (node.type === 'text') return node.text || ''
+                if (node.content && Array.isArray(node.content)) return node.content.map(extractText).join('')
+                return ' '
+            }
+
+            const rawText = extractText(s.content)
+
+            let match;
+            while ((match = regex.exec(rawText)) !== null) {
+                const start = Math.max(0, match.index - 40)
+                const end = Math.min(rawText.length, match.index + match[0].length + 40)
+                const preview = rawText.substring(start, end).trim()
+
+                // Add contextual bolding wrapper for the match itself around the generic extract constraint
+                results.push({
+                    sceneId: s.id,
+                    sceneName: s.name,
+                    snippet: `...${preview}...`
+                })
+            }
+        }
+
+        return results
+    }
+
+    /**
+     * Cross-Scene AST Traversal Replace Alg
+     */
+    static async globalReplaceText(novelId: string, query: string, replacement: string, matchCase: boolean = false): Promise<number> {
+        let totalReplacements = 0
+        if (!query.trim()) return 0
+
+        const scenes = await db.scenes.where({ novelId }).toArray()
+        const flags = matchCase ? 'g' : 'gi'
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, flags)
+
+        for (const s of scenes) {
+            let wasModified = false
+            const traverseAndReplace = (node: any) => {
+                if (!node) return
+                if (node.type === 'text' && node.text) {
+                    const original = node.text
+                    const replaced = node.text.replace(regex, replacement)
+                    if (original !== replaced) {
+                        node.text = replaced
+                        wasModified = true
+                        totalReplacements += (original.match(regex) || []).length
+                    }
+                }
+                if (node.content && Array.isArray(node.content)) {
+                    node.content.forEach(traverseAndReplace)
+                }
+            }
+
+            if (s.content) {
+                traverseAndReplace(s.content)
+                if (wasModified) {
+                    // Recalculate generic word boundaries after tree replacement is confirmed
+                    const rawTextExtracted = (node: any): string => {
+                        if (!node) return ''
+                        if (node.type === 'text') return node.text || ''
+                        if (node.content) return node.content.map(rawTextExtracted).join('')
+                        return ' '
+                    }
+                    const updatedText = rawTextExtracted(s.content)
+                    const updatedWordCount = updatedText.split(/\s+/).filter(Boolean).length
+                    await db.scenes.update(s.id, { content: s.content, wordCount: updatedWordCount, updatedAt: Date.now() })
+                    // Capture snapshot for revisions safety-net!
+                    await this.createSceneRevision(s.id, novelId, s.content, updatedWordCount)
+                }
+            }
+        }
+
+        return totalReplacements
+    }
 }

@@ -4,8 +4,9 @@ import { ArchiveService } from '../../services/ArchiveService'
 import { confirmAction } from '../../store/dialogStore'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
+import { promptInput } from '../../store/dialogStore'
 import {
-    Copy, Archive, Trash2, RotateCcw, MoveRight, FilePlus2, ChevronRight, Wand2, Search
+    Copy, Archive, Trash2, RotateCcw, MoveRight, FilePlus2, ChevronRight, Wand2, Search, Edit2, PanelRight
 } from 'lucide-react'
 
 interface Props {
@@ -53,15 +54,26 @@ export default function SceneActionsMenu({ sceneId, anchorRef, onClose, onOpenIn
     // Load chapters and prompts
     useEffect(() => {
         if (activeNovelId) {
-            Promise.all([
-                db.chapters.where({ novelId: activeNovelId }).toArray(),
-                db.prompts.where({ novelId: activeNovelId }).toArray()
-            ]).then(([cList, pList]) => {
-                setChapters(cList)
-                setPrompts(pList.filter(p => !p.isTrashed))
-            })
+            db.chapters.where({ novelId: activeNovelId }).toArray()
+                .then(cList => setChapters(cList))
+                .catch(e => console.error('Failed to load chapters:', e))
+
+            db.prompts.where({ novelId: activeNovelId }).toArray()
+                .then(pList => setPrompts(pList.filter(p => !p.isTrashed)))
+                .catch(e => console.error('Failed to load prompts:', e))
         }
     }, [activeNovelId])
+
+    const handleRenameScene = async () => {
+        const scene = await db.scenes.get(sceneId)
+        if (!scene) return
+        const newName = await promptInput({ title: 'Rename Scene', defaultValue: scene.name })
+        if (newName && newName !== scene.name) {
+            await db.scenes.update(sceneId, { name: newName, updatedAt: Date.now() })
+            onReload?.()
+        }
+        onClose()
+    }
 
     const handleCopyText = async () => {
         const scene = await db.scenes.get(sceneId)
@@ -152,11 +164,17 @@ export default function SceneActionsMenu({ sceneId, anchorRef, onClose, onOpenIn
     return (
         <div ref={menuRef} style={menuStyle}>
             {label('Scene Actions')}
+            <MenuItem onClick={handleRenameScene}>
+                <Edit2 size={14} /> Rename Scene
+            </MenuItem>
             <MenuItem onClick={() => { onOpenInspector?.('beats'); onClose() }}>
                 <FilePlus2 size={14} /> Edit Metadata
             </MenuItem>
             <MenuItem onClick={() => { onOpenInspector?.('revisions'); onClose() }}>
                 <RotateCcw size={14} /> View Revisions
+            </MenuItem>
+            <MenuItem onClick={() => { useWorkspaceStore.getState().setReferenceScene(sceneId); onClose() }}>
+                <PanelRight size={14} /> Open in Split Pane
             </MenuItem>
 
             {divider}
@@ -174,7 +192,7 @@ export default function SceneActionsMenu({ sceneId, anchorRef, onClose, onOpenIn
             >
                 <MoveRight size={14} /> Move to Chapter <ChevronRight size={12} style={{ marginLeft: 'auto' }} />
                 {showMoveSubmenu && (
-                    <div style={{ ...menuStyle, top: 0, left: '100%', maxHeight: '220px', overflowY: 'auto' }}>
+                    <div style={{ ...menuStyle, position: 'absolute', top: 0, left: '100%', maxHeight: '220px', overflowY: 'auto' }}>
                         {chapters.filter(c => c.id !== chapterId).map(c => (
                             <MenuItem key={c.id} onClick={() => handleMove(c.id)}>{c.name}</MenuItem>
                         ))}
@@ -190,7 +208,7 @@ export default function SceneActionsMenu({ sceneId, anchorRef, onClose, onOpenIn
             >
                 <Wand2 size={14} /> AI Actions <ChevronRight size={12} style={{ marginLeft: 'auto' }} />
                 {showPromptSubmenu && (
-                    <div style={{ ...menuStyle, top: 0, left: '100%', maxHeight: '220px', overflowY: 'auto' }}>
+                    <div style={{ ...menuStyle, position: 'absolute', top: 0, left: '100%', maxHeight: '220px', overflowY: 'auto' }}>
                         {prompts.filter(p => p.isEnabled !== false).map(p => (
                             <MenuItem key={p.id} onClick={() => {
                                 // Real implementation would hand this off to the LLM store

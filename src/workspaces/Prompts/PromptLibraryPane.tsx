@@ -3,7 +3,7 @@ import { Plus, Search, ChevronDown, ChevronRight, Wand2, Star, Globe, Lock, Tras
 import type { Prompt, PromptCategory } from '../../db/schema'
 import { PromptService } from '../../services/PromptService'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { promptInput } from '../../store/dialogStore'
+import { promptInput, confirmAlert } from '../../store/dialogStore'
 
 interface PromptLibraryPaneProps {
     activePromptId: string | null;
@@ -78,7 +78,10 @@ export default function PromptLibraryPane({ activePromptId, onSelect, prompts, c
             if (match) {
                 targetCatId = match.id
             } else {
-                alert(`Could not find a category named "${targetName}". Deletion cancelled.`)
+                await confirmAlert({
+                    title: 'Category Not Found',
+                    message: `Could not find a category named "${targetName}". Deletion cancelled.`
+                })
                 return
             }
         }
@@ -87,7 +90,11 @@ export default function PromptLibraryPane({ activePromptId, onSelect, prompts, c
             await PromptService.deleteCategory(cat.id, targetCatId)
             await reloadPrompts()
         } catch (err: any) {
-            alert(err.message)
+            await confirmAlert({
+                title: 'Error Deleting Category',
+                message: err.message,
+                isDestructive: true
+            })
         }
     }
 
@@ -177,7 +184,7 @@ export default function PromptLibraryPane({ activePromptId, onSelect, prompts, c
                                         {!cat.isSystem && hoveredCategory === cat.id && (
                                             <div style={{ display: 'flex', gap: '0.2rem' }}>
                                                 <button className="icon-btn" style={{ padding: '0.1rem' }} onClick={e => handleEditCategory(e, cat)}><Edit2 size={12} /></button>
-                                                <button className="icon-btn" style={{ color: 'var(--color-danger)', padding: '0.1rem' }} onClick={e => handleDeleteCategory(e, cat)}><Trash2 size={12} /></button>
+                                                <button className="icon-btn" style={{ color: 'var(--color-error)', padding: '0.1rem' }} onClick={e => handleDeleteCategory(e, cat)}><Trash2 size={12} /></button>
                                             </div>
                                         )}
 
@@ -204,7 +211,7 @@ export default function PromptLibraryPane({ activePromptId, onSelect, prompts, c
                                                         marginBottom: '0.1rem'
                                                     }}
                                                 >
-                                                    <span style={{ fontWeight: activePromptId === p.id ? 600 : 400, color: activePromptId === p.id ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                                                    <span style={{ fontWeight: activePromptId === p.id ? 600 : 400, color: activePromptId === p.id ? 'var(--color-accent)' : 'var(--color-text)' }}>
                                                         {p.name}
                                                     </span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -252,7 +259,7 @@ export default function PromptLibraryPane({ activePromptId, onSelect, prompts, c
                                                     marginBottom: '0.1rem'
                                                 }}
                                             >
-                                                <span style={{ fontWeight: activePromptId === p.id ? 600 : 400, color: activePromptId === p.id ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                                                <span style={{ fontWeight: activePromptId === p.id ? 600 : 400, color: activePromptId === p.id ? 'var(--color-accent)' : 'var(--color-text)' }}>
                                                     {p.name}
                                                 </span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>

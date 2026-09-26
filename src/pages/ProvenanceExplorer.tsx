@@ -71,7 +71,7 @@ export default function ProvenanceExplorer() {
 
                 {/* Search Target Sidebar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="spike-section">
+                    <div className="surface-panel">
                         <label htmlFor="global-bible-query" style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem', display: 'block' }}><Search size={14} /> Global Bible Query</label>
                         <select
                             id="global-bible-query"
@@ -87,7 +87,7 @@ export default function ProvenanceExplorer() {
                     </div>
 
                     {selectedEntryId && (
-                        <div className="spike-section">
+                        <div className="surface-panel">
                             <h4 style={{ margin: '0 0 1rem 0' }}>Fact Variables (FieldValues)</h4>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 {fieldValues.length === 0 ? <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No explicit fields mapped.</div> : null}
@@ -98,7 +98,7 @@ export default function ProvenanceExplorer() {
                                         style={{
                                             textAlign: 'left',
                                             padding: '0.6rem',
-                                            background: selectedFieldId === f.id ? 'var(--color-primary)' : 'var(--color-surface)',
+                                            background: selectedFieldId === f.id ? 'var(--color-accent)' : 'var(--color-surface)',
                                             color: selectedFieldId === f.id ? '#fff' : 'var(--color-text)',
                                             border: '1px solid var(--color-border)',
                                             borderRadius: '4px',
@@ -117,14 +117,14 @@ export default function ProvenanceExplorer() {
                 </div>
 
                 {/* Trajectory Canvas */}
-                <div className="spike-section" style={{ background: 'var(--color-bg)' }}>
+                <div className="surface-panel" style={{ background: 'var(--color-bg)' }}>
                     {selectedFieldId ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                             {trajectory.map((step, idx) => (
                                 <div key={idx} style={{ display: 'flex', gap: '2rem' }}>
                                     {/* Trajectory Axis */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <GitCommit size={14} color="#fff" />
                                         </div>
                                         {idx < trajectory.length - 1 && <div style={{ width: '2px', height: '100%', background: 'var(--color-border)', minHeight: '40px' }} />}
@@ -133,8 +133,8 @@ export default function ProvenanceExplorer() {
                                     {/* Execution Node */}
                                     <div style={{ paddingBottom: '2rem', flex: 1 }}>
                                         {step.action === 'Creation / Injection' ? (
-                                            <div style={{ background: 'var(--color-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-primary)' }}>
-                                                <strong style={{ color: 'var(--color-primary)' }}>Origin Mutation</strong>
+                                            <div style={{ background: 'var(--color-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-accent)' }}>
+                                                <strong style={{ color: 'var(--color-accent)' }}>Origin Mutation</strong>
                                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Created at {new Date(step.time).toLocaleString()}</div>
                                                 <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>The explicit value was committed structurally into local DB state.</div>
                                             </div>

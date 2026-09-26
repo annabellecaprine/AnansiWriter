@@ -88,7 +88,7 @@ export default function RelationshipGraph() {
     }, [activeNovelId, filterType, filterTag, filterRel, hideDisconnected, focusNodeId, hopDepth])
 
     return (
-        <div className="spike-section" style={{ marginTop: '2rem' }}>
+        <div className="surface-panel" style={{ marginTop: '2rem' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}><Network size={18} /> Relationship Topology Graph</h3>
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
@@ -159,14 +159,14 @@ export default function RelationshipGraph() {
                             left: n.x,
                             top: n.y,
                             transform: 'translate(-50%, -50%)',
-                            background: focusNodeId === n.id ? 'var(--color-primary)' : 'var(--color-surface)',
+                            background: focusNodeId === n.id ? 'var(--color-accent)' : 'var(--color-surface)',
                             padding: '0.5rem 1rem',
                             borderRadius: '20px',
-                            border: `2px solid ${focusNodeId === n.id ? '#fff' : 'var(--color-primary)'}`,
+                            border: `2px solid ${focusNodeId === n.id ? '#fff' : 'var(--color-accent)'}`,
                             color: focusNodeId === n.id ? '#fff' : 'var(--color-text)',
                             fontSize: '0.8rem',
                             fontWeight: 600,
-                            boxShadow: focusNodeId === n.id ? '0 0 15px var(--color-primary)' : '0 4px 10px rgba(0,0,0,0.3)',
+                            boxShadow: focusNodeId === n.id ? '0 0 15px var(--color-accent)' : '0 4px 10px rgba(0,0,0,0.3)',
                             cursor: 'pointer',
                             zIndex: 10
                         }}>
