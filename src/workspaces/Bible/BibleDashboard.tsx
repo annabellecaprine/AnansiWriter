@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
+import { Download } from 'lucide-react'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { BibleService } from '../../services/BibleService'
+import { BibleExporter } from '../../services/export/BibleExporter'
+import { db } from '../../db/database'
 import { BibleLibraryPane } from './BibleLibraryPane'
 import { BibleEntryPane } from './BibleEntryPane'
 import { NewEntryModal } from './modals/NewEntryModal'
@@ -12,6 +15,30 @@ export default function BibleDashboard() {
     const [entries, setEntries] = useState<BibleEntry[]>([])
     const [activeEntryId, setActiveEntryId] = useState<string | null>(null)
     const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
+
+    const handleExport = async () => {
+        if (!activeNovelId || isExporting) return
+        setIsExporting(true)
+        try {
+            const blob = await BibleExporter.exportBible(activeNovelId)
+            const novel = await db.novels.get(activeNovelId)
+            const titleSlug = (novel?.title || 'codex').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${titleSlug}_codex.zip`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+        } catch (err: any) {
+            console.error('Codex Export Failed:', err)
+            alert(err.message || 'Failed to export Codex.')
+        } finally {
+            setIsExporting(false)
+        }
+    }
 
     const loadEntries = () => {
         if (activeNovelId) {
@@ -57,7 +84,18 @@ export default function BibleDashboard() {
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
                         <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: 500 }}>Select or Create an Entry</h2>
-                        <button className="btn outline" onClick={() => setIsNewEntryOpen(true)}>+ New Entry</button>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                            <button className="btn outline" onClick={() => setIsNewEntryOpen(true)}>+ New Entry</button>
+                            <button
+                                className="btn outline"
+                                onClick={handleExport}
+                                disabled={isExporting}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                                title="Export Codex as Markdown ZIP"
+                            >
+                                <Download size={16} /> {isExporting ? 'Exporting...' : 'Export Codex (.zip)'}
+                            </button>
+                        </div>
 
                         <div style={{ marginTop: '3rem', width: '80%', maxWidth: '600px' }}>
                             <OccurrenceReviewQueue />

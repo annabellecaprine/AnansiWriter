@@ -19,8 +19,13 @@ export default function ExportModal({ novelId, projectName, onClose }: { novelId
 
     useEffect(() => {
         const load = async () => {
-            const b = await db.novels.where({ novelId }).toArray()
-            setBooks(b)
+            const n = await db.novels.get(novelId)
+            if (n?.seriesId) {
+                const b = await db.novels.where('seriesId').equals(n.seriesId).toArray()
+                setBooks(b)
+            } else if (n) {
+                setBooks([n])
+            }
         }
         load()
     }, [novelId])

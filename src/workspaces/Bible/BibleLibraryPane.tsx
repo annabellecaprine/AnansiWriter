@@ -1,6 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Layers, Book } from 'lucide-react'
+import { Plus, Search, Layers, Book, Download } from 'lucide-react'
 import type { BibleEntry } from '../../db/schema'
+import { BibleExporter } from '../../services/export/BibleExporter'
+import { db } from '../../db/database'
+import { useWorkspaceStore } from '../../store/workspaceStore'
 
 export function BibleLibraryPane({
     entries,
@@ -13,8 +16,33 @@ export function BibleLibraryPane({
     onSelectEntry: (id: string) => void,
     onNewEntry: () => void
 }) {
+    const { activeNovelId } = useWorkspaceStore()
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedType, setSelectedType] = useState<string | null>(null)
+    const [isExporting, setIsExporting] = useState(false)
+
+    const handleExport = async () => {
+        if (!activeNovelId || isExporting) return
+        setIsExporting(true)
+        try {
+            const blob = await BibleExporter.exportBible(activeNovelId)
+            const novel = await db.novels.get(activeNovelId)
+            const titleSlug = (novel?.title || 'codex').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${titleSlug}_codex.zip`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+        } catch (err: any) {
+            console.error('Codex Export Failed:', err)
+            alert(err.message || 'Failed to export Codex.')
+        } finally {
+            setIsExporting(false)
+        }
+    }
 
     // Compute categories and counts
     const categoryCounts = useMemo(() => {
@@ -44,9 +72,21 @@ export function BibleLibraryPane({
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: 0, background: 'var(--color-surface)', zIndex: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Codex Library</h2>
-                    <button className="btn primary" onClick={onNewEntry} style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
-                        <Plus size={16} style={{ marginRight: '0.2rem' }} /> New
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button
+                            className="btn outline"
+                            onClick={handleExport}
+                            disabled={isExporting}
+                            title="Export Codex as Markdown ZIP"
+                            style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                        >
+                            <Download size={14} />
+                            {isExporting ? 'Exporting...' : 'Export'}
+                        </button>
+                        <button className="btn primary" onClick={onNewEntry} style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
+                            <Plus size={16} style={{ marginRight: '0.2rem' }} /> New
+                        </button>
+                    </div>
                 </div>
                 <div style={{ position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />

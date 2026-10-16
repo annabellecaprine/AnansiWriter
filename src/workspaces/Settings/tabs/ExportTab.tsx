@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Download, FileText, FileBadge, BookTemplate, AlertTriangle, FileArchive } from 'lucide-react';
+import { Download, FileText, FileBadge, BookTemplate, AlertTriangle, FileArchive, BookOpen } from 'lucide-react';
 import { db } from '../../../db/database';
 import { ExportService } from '../../../services/export/ExportService';
 import { MarkdownExporter } from '../../../services/export/MarkdownExporter';
 import { DocxExporter } from '../../../services/export/DocxExporter';
 import { EpubExporter } from '../../../services/export/EpubExporter';
+import { BibleExporter } from '../../../services/export/BibleExporter';
 import type { Novel } from '../../../db/schema';
 
 export function ExportTab() {
     const [novels, setNovels] = useState<Novel[]>([]);
     const [selectedNovelId, setSelectedNovelId] = useState<string>('');
-    const [exportFormat, setExportFormat] = useState<'markdown' | 'docx' | 'epub'>('docx');
+    const [exportFormat, setExportFormat] = useState<'markdown' | 'docx' | 'epub' | 'codex'>('docx');
     const [isExporting, setIsExporting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
@@ -46,13 +47,17 @@ export function ExportTab() {
             } else if (exportFormat === 'epub') {
                 blob = await EpubExporter.generateEpub(pkg);
                 ext = '.epub';
+            } else if (exportFormat === 'codex') {
+                blob = await BibleExporter.exportBible(selectedNovelId);
+                ext = '_codex.zip';
             }
 
             if (blob) {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${pkg.novel.title.replace(/[^z0-9]/gi, '_').toLowerCase()}${ext}`;
+                const safeTitle = (pkg.novel.title || 'novel').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase();
+                a.download = exportFormat === 'codex' ? `${safeTitle}_codex.zip` : `${safeTitle}${ext}`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -157,6 +162,24 @@ export function ExportTab() {
                                 <div>
                                     <h4 style={{ margin: '0 0 0.25rem 0', color: exportFormat === 'markdown' ? 'var(--color-text)' : 'var(--color-text-muted)' }}>Markdown Manifest</h4>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Linear text file stripped of HTML utilizing typical hashes.</div>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label style={{ cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="format"
+                                value="codex"
+                                checked={exportFormat === 'codex'}
+                                onChange={(e) => setExportFormat(e.target.value as any)}
+                                style={{ display: 'none' }}
+                            />
+                            <div style={{ padding: '1rem', border: `1px solid ${exportFormat === 'codex' ? 'var(--color-accent)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)', background: exportFormat === 'codex' ? 'rgba(0, 153, 255, 0.05)' : 'var(--color-surface)', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                                <BookOpen size={24} color={exportFormat === 'codex' ? 'var(--color-accent)' : 'var(--color-text-muted)'} />
+                                <div>
+                                    <h4 style={{ margin: '0 0 0.25rem 0', color: exportFormat === 'codex' ? 'var(--color-text)' : 'var(--color-text-muted)' }}>Codex Vault (.zip)</h4>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Markdown archive of all Bible entries with frontmatter & index.</div>
                                 </div>
                             </div>
                         </label>
