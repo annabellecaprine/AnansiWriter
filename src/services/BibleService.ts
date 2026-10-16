@@ -4,11 +4,14 @@ import type { BibleEntry, FieldValue, EntityState, NarrativePosition } from '../
 import { isNarrativePositionInRange } from './ai/narrativeComparator'
 import { CodexConfigService } from './CodexConfigService'
 
+import { LibraryService } from './LibraryService'
+
 export const BUILT_IN_TEMPLATES: Record<string, string[]> = {
     'Character': ['Full Name', 'Pronouns', 'Status', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw'],
     'Location': ['Name', 'Region', 'Climate', 'Population', 'Key Landmarks'],
     'Organization': ['Name', 'Leader', 'Purpose', 'Headquarters', 'Members'],
-    'Lore': ['Concept', 'Origin', 'Rules', 'Limitations', 'Known Examples']
+    'Lore': ['Concept', 'Origin', 'Rules', 'Limitations', 'Known Examples'],
+    'Story Guide': ['State of the World', 'Central Conflict', 'Current Era / Setting', 'Key Factions', 'Themes']
 }
 
 export class BibleService {
@@ -35,7 +38,14 @@ export class BibleService {
 
         if (scope === 'series') {
             const novel = await db.novels.get(novelId)
-            targetSeriesId = novel?.seriesId
+            let sId = novel?.seriesId
+            if (!sId) {
+                // Standalone novel: auto-provision series container so shared scope works reliably
+                const seriesTitle = novel?.title ? `${novel.title} Series` : 'Untitled Series'
+                sId = await LibraryService.createSeries(seriesTitle)
+                await db.novels.update(novelId, { seriesId: sId })
+            }
+            targetSeriesId = sId
             targetNovelId = undefined
         }
 
@@ -75,7 +85,7 @@ export class BibleService {
 
     static async listActiveEntries(novelId: string): Promise<BibleEntry[]> {
         const novel = await db.novels.get(novelId)
-        const seriesId = novel?.seriesId
+        let seriesId = novel?.seriesId
 
         const novelEntries = await db.bibleEntries.where('novelId').equals(novelId).toArray()
         let allEntries = [...novelEntries]
@@ -83,6 +93,21 @@ export class BibleService {
         if (seriesId) {
             const seriesEntries = await db.bibleEntries.where('seriesId').equals(seriesId).toArray()
             allEntries = [...allEntries, ...seriesEntries]
+        }
+
+        // Auto-heal any orphaned entries that lost both novelId and seriesId
+        const orphaned = await db.bibleEntries.filter(e => !e.novelId && !e.seriesId).toArray()
+        if (orphaned.length > 0) {
+            if (!seriesId) {
+                const seriesTitle = novel?.title ? `${novel.title} Series` : 'Untitled Series'
+                seriesId = await LibraryService.createSeries(seriesTitle)
+                await db.novels.update(novelId, { seriesId })
+            }
+            for (const orphan of orphaned) {
+                await db.bibleEntries.update(orphan.id, { seriesId })
+                orphan.seriesId = seriesId
+            }
+            allEntries = [...allEntries, ...orphaned]
         }
 
         // Deduplicate safely
@@ -100,6 +125,11 @@ export class BibleService {
         if (seriesId) {
             const seriesEntries = await db.bibleEntries.where('seriesId').equals(seriesId).toArray()
             allEntries = [...allEntries, ...seriesEntries]
+        }
+
+        const orphaned = await db.bibleEntries.filter(e => !e.novelId && !e.seriesId && !!e.isTrashed).toArray()
+        if (orphaned.length > 0) {
+            allEntries = [...allEntries, ...orphaned]
         }
 
         const unique = Array.from(new Map(allEntries.map(e => [e.id, e])).values());

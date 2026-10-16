@@ -722,6 +722,13 @@ export function CodexSchemaTab() {
                                         title={c.label}
                                     />
                                 ))}
+                                <input
+                                    type="color"
+                                    value={relColor}
+                                    onChange={e => setRelColor(e.target.value)}
+                                    style={{ width: '32px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                                    title="Custom Hex"
+                                />
                             </div>
                         </div>
 

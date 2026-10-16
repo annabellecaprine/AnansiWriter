@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Layers, Download, CheckSquare, Check, X, ArrowRightLeft } from 'lucide-react'
 import type { BibleEntry } from '../../db/schema'
 import { BibleExporter } from '../../services/export/BibleExporter'
-import { CodexConfigService, type CodexCategoryDefinition } from '../../services/CodexConfigService'
+import { CodexConfigService, type CodexCategoryDefinition, normalizeCategoryName } from '../../services/CodexConfigService'
 import { CodexIcon } from '../../components/shared/CodexIcon'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
@@ -70,19 +70,21 @@ export function BibleLibraryPane({
         }
     }
 
-    // Compute categories and counts
+    // Compute categories and counts with normalization
     const categoryCounts = useMemo(() => {
         const counts: Record<string, number> = {}
         entries.forEach(e => {
-            counts[e.type] = (counts[e.type] || 0) + 1
+            const canonical = normalizeCategoryName(e.type, categories)
+            counts[canonical] = (counts[canonical] || 0) + 1
         })
         return counts
-    }, [entries])
+    }, [entries, categories])
 
-    // Filter entries
+    // Filter entries using canonical categories
     const filteredEntries = useMemo(() => {
         return entries.filter(e => {
-            if (selectedType && e.type !== selectedType) return false
+            const canonical = normalizeCategoryName(e.type, categories)
+            if (selectedType && canonical !== selectedType) return false
             if (!searchQuery) return true
 
             const q = searchQuery.toLowerCase()
@@ -91,7 +93,7 @@ export function BibleLibraryPane({
                 || e.keywords?.some(k => k.toLowerCase().includes(q))
                 || e.tags?.some(t => t.toLowerCase().includes(q))
         })
-    }, [entries, searchQuery, selectedType])
+    }, [entries, searchQuery, selectedType, categories])
 
     const toggleSelect = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation()
@@ -268,7 +270,8 @@ export function BibleLibraryPane({
                 <h3 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Entries ({filteredEntries.length})</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {filteredEntries.map(e => {
-                        const catDef = categoryMap.get(e.type.toLowerCase())
+                        const canonicalType = normalizeCategoryName(e.type, categories)
+                        const catDef = categoryMap.get(canonicalType.toLowerCase())
                         const catColor = catDef?.color || 'var(--color-text-muted)'
                         const isSelected = selectedIds.has(e.id)
                         return (
@@ -314,7 +317,7 @@ export function BibleLibraryPane({
                                     </span>
                                     <span style={{ fontSize: '0.8rem', color: catColor, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                         <CodexIcon name={catDef?.icon} color={catColor} size={12} />
-                                        {e.type}
+                                        {canonicalType}
                                     </span>
                                 </div>
                             </div>

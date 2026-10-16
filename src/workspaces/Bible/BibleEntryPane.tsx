@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { BibleService } from '../../services/BibleService'
 import { AssetService } from '../../services/AssetService'
-import { CodexConfigService, type CodexCategoryDefinition } from '../../services/CodexConfigService'
+import { CodexConfigService, type CodexCategoryDefinition, normalizeCategoryName } from '../../services/CodexConfigService'
 import { CodexIcon } from '../../components/shared/CodexIcon'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { Save, Trash2, Layers, ChevronDown } from 'lucide-react'
+import { Save, Trash2, Layers, ChevronDown, Edit2, Check, X } from 'lucide-react'
 import { confirmAction } from '../../store/dialogStore'
 
 import OverviewTab from './tabs/OverviewTab'
@@ -24,6 +24,10 @@ export function BibleEntryPane({ entryId, onRefreshLibrary, onClose }: { entryId
     const [assets, setAssets] = useState<any[]>([])
     const [categories, setCategories] = useState<CodexCategoryDefinition[]>([])
 
+    // Name editing state
+    const [isEditingName, setIsEditingName] = useState(false)
+    const [nameInput, setNameInput] = useState('')
+
     const [activeTab, setActiveTab] = useState<TabKeys>('Overview')
 
     const loadEntry = () => {
@@ -39,12 +43,23 @@ export function BibleEntryPane({ entryId, onRefreshLibrary, onClose }: { entryId
     }
 
     useEffect(() => {
+        setIsEditingName(false)
         loadEntry()
         CodexConfigService.getCategories().then(setCategories)
     }, [activeNovelId, entryId])
 
     if (!entry) {
         return <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>Loading...</div>
+    }
+
+    const handleSaveName = async () => {
+        const trimmed = nameInput.trim()
+        if (trimmed && activeNovelId && trimmed !== entry.name) {
+            await BibleService.updateEntry(activeNovelId, entry.id, { name: trimmed })
+            setEntry((prev: any) => prev ? { ...prev, name: trimmed } : prev)
+            onRefreshLibrary()
+        }
+        setIsEditingName(false)
     }
 
     const handleCategoryChange = async (newType: string) => {
@@ -54,7 +69,8 @@ export function BibleEntryPane({ entryId, onRefreshLibrary, onClose }: { entryId
         onRefreshLibrary()
     }
 
-    const currentCat = categories.find(c => c.name.toLowerCase() === entry.type.toLowerCase())
+    const canonicalCategoryName = normalizeCategoryName(entry.type, categories)
+    const currentCat = categories.find(c => c.name.toLowerCase() === canonicalCategoryName.toLowerCase())
 
     const handleDelete = async () => {
         if (!activeNovelId) return
@@ -79,8 +95,82 @@ export function BibleEntryPane({ entryId, onRefreshLibrary, onClose }: { entryId
             {/* Header */}
             <div style={{ padding: '2rem 2rem 0 2rem', background: 'var(--color-surface)', display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid var(--color-border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                        <h1 style={{ margin: 0, fontSize: '2rem' }}>{entry.name}</h1>
+                    <div style={{ flex: 1, marginRight: '1rem' }}>
+                        {isEditingName ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={nameInput}
+                                    onChange={e => setNameInput(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') handleSaveName()
+                                        if (e.key === 'Escape') setIsEditingName(false)
+                                    }}
+                                    style={{
+                                        fontSize: '1.6rem',
+                                        fontWeight: 700,
+                                        padding: '0.2rem 0.5rem',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--color-accent)',
+                                        background: 'var(--color-bg)',
+                                        color: 'var(--color-text)',
+                                        minWidth: '280px',
+                                        maxWidth: '500px'
+                                    }}
+                                />
+                                <button
+                                    className="btn primary"
+                                    onClick={handleSaveName}
+                                    style={{ padding: '0.4rem 0.6rem' }}
+                                    title="Save Name (Enter)"
+                                >
+                                    <Check size={16} />
+                                </button>
+                                <button
+                                    className="btn outline"
+                                    onClick={() => setIsEditingName(false)}
+                                    style={{ padding: '0.4rem 0.6rem' }}
+                                    title="Cancel (Esc)"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <h1
+                                    style={{ margin: 0, fontSize: '2rem', cursor: 'pointer' }}
+                                    onDoubleClick={() => {
+                                        setNameInput(entry.name)
+                                        setIsEditingName(true)
+                                    }}
+                                    title="Double-click to rename"
+                                >
+                                    {entry.name}
+                                </h1>
+                                <button
+                                    type="button"
+                                    className="icon-btn"
+                                    onClick={() => {
+                                        setNameInput(entry.name)
+                                        setIsEditingName(true)
+                                    }}
+                                    style={{
+                                        opacity: 0.6,
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--color-text)',
+                                        cursor: 'pointer',
+                                        padding: '0.25rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center'
+                                    }}
+                                    title="Rename Entry"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                            </div>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.35rem' }}>
                             <div
                                 style={{

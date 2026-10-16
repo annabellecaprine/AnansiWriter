@@ -108,4 +108,65 @@ describe('BibleService Regression & Persistence', () => {
         active = await BibleService.listActiveEntries(novelId)
         expect(active.some(e => e.id === entryId)).toBe(true)
     })
+
+    it('creates a series-scoped entry on a standalone novel, provisions series, and lists it upon reload', async () => {
+        // Novel starts without a seriesId
+        const standaloneNovel = await db.novels.get(novelId)
+        expect(standaloneNovel?.seriesId).toBeUndefined()
+
+        // Create series-scoped entry
+        const entryId = await BibleService.createEntry(novelId, 'The Hermetic Order', 'Organization', 'series')
+        expect(entryId).toBeDefined()
+
+        // Verify novel was linked to an auto-provisioned series
+        const updatedNovel = await db.novels.get(novelId)
+        expect(updatedNovel?.seriesId).toBeDefined()
+
+        const createdEntry = await BibleService.getEntry(entryId)
+        expect(createdEntry?.seriesId).toBe(updatedNovel?.seriesId)
+        expect(createdEntry?.novelId).toBeUndefined()
+
+        // Crucial bug test: entry must appear in listActiveEntries upon reload
+        const activeList = await BibleService.listActiveEntries(novelId)
+        expect(activeList.some(e => e.id === entryId)).toBe(true)
+    })
+
+    it('heals orphaned entries missing both novelId and seriesId', async () => {
+        // Insert an orphaned entry (like an old corrupted state)
+        const orphanId = 'orphaned-entry-1'
+        await db.bibleEntries.add({
+            id: orphanId,
+            novelId: undefined,
+            seriesId: undefined,
+            name: 'The Hungering One',
+            type: 'Creature',
+            tags: [],
+            aliases: [],
+            keywords: [],
+            description: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        })
+
+        // listActiveEntries should heal it and attach it to the novel series
+        const activeList = await BibleService.listActiveEntries(novelId)
+        expect(activeList.some(e => e.id === orphanId)).toBe(true)
+
+        const healed = await BibleService.getEntry(orphanId)
+        expect(healed?.seriesId).toBeDefined()
+    })
+
+    it('creates Story Guide entries using template with canonical setting-neutral fields', async () => {
+        const entryId = await BibleService.createEntryUsingTemplate(novelId, 'State of the World', 'Story Guide')
+        const withFields = await BibleService.getEntryWithFields(novelId, entryId)
+
+        expect(withFields?.name).toBe('State of the World')
+        expect(withFields?.type).toBe('Story Guide')
+        const fieldLabels = withFields?.fields.map(f => f.fieldKey)
+        expect(fieldLabels).toContain('State of the World')
+        expect(fieldLabels).toContain('Central Conflict')
+        expect(fieldLabels).toContain('Current Era / Setting')
+        expect(fieldLabels).toContain('Key Factions')
+        expect(fieldLabels).toContain('Themes')
+    })
 })

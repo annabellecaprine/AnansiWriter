@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Dialog } from '../../../components/shared/Dialog'
 import { BibleService } from '../../../services/BibleService'
 import {
@@ -9,7 +9,8 @@ import {
 } from '../../../services/CodexConfigService'
 import { CodexIcon, AVAILABLE_CODEX_ICONS, CODEX_COLOR_PALETTE } from '../../../components/shared/CodexIcon'
 import { useWorkspaceStore } from '../../../store/workspaceStore'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronDown, Check, AlertTriangle } from 'lucide-react'
+import type { BibleEntry } from '../../../db/schema'
 
 const NEW_CATEGORY_OPTION = '__NEW_CATEGORY__'
 
@@ -23,6 +24,13 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
 
     // Master categories from CodexConfigService
     const [categories, setCategories] = useState<CodexCategoryDefinition[]>([])
+
+    // Active entries for duplicate-name detection
+    const [existingEntries, setExistingEntries] = useState<BibleEntry[]>([])
+
+    // Custom dropdown menu open state
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+    const dropdownRef = useRef<HTMLDivElement>(null)
 
     // On-the-fly category creation state
     const [isCreatingCategory, setIsCreatingCategory] = useState(false)
@@ -40,14 +48,37 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
         }
     }
 
+    const loadExistingEntries = async () => {
+        if (activeNovelId) {
+            const entries = await BibleService.listActiveEntries(activeNovelId)
+            setExistingEntries(entries)
+        }
+    }
+
     useEffect(() => {
         if (isOpen) {
             loadCategories()
+            loadExistingEntries()
             setIsCreatingCategory(false)
             setCustomCatName('')
             setSaveToSettings(true)
+            setIsDropdownOpen(false)
         }
-    }, [isOpen])
+    }, [isOpen, activeNovelId])
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setIsDropdownOpen(false)
+            }
+        }
+        if (isDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside)
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [isDropdownOpen])
 
     const handleTypeChange = (val: string) => {
         if (val === NEW_CATEGORY_OPTION) {
@@ -102,32 +133,145 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
 
     const activeCat = categories.find(c => c.name === selectedType)
 
+    // Duplicate detection
+    const trimmedNameLower = name.trim().toLowerCase()
+    const duplicateEntry = trimmedNameLower
+        ? existingEntries.find(e => e.name.trim().toLowerCase() === trimmedNameLower)
+        : null
+
     return (
         <Dialog isOpen={isOpen} onClose={onClose} title="Create New Codex Entry" width="520px">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {/* Category / Type Selector */}
-                <div>
+                <div ref={dropdownRef} style={{ position: 'relative' }}>
                     <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, fontSize: '0.9rem' }}>
                         Codex Category *
                     </label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {activeCat && !isCreatingCategory && (
-                            <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: `${activeCat.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <CodexIcon name={activeCat.icon} color={activeCat.color} size={16} />
+                    <button
+                        type="button"
+                        onClick={() => setIsDropdownOpen(prev => !prev)}
+                        style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '4px',
+                            border: isDropdownOpen ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                            background: 'var(--color-bg)',
+                            color: 'var(--color-text)',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            {activeCat && !isCreatingCategory ? (
+                                <>
+                                    <div style={{
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '4px',
+                                        background: `${activeCat.color}25`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <CodexIcon name={activeCat.icon} color={activeCat.color} size={14} />
+                                    </div>
+                                    <span style={{ fontWeight: 600 }}>{activeCat.name}</span>
+                                </>
+                            ) : isCreatingCategory ? (
+                                <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>+ Defining New Category...</span>
+                            ) : (
+                                <span>Select Category...</span>
+                            )}
+                        </div>
+                        <ChevronDown size={16} style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease', opacity: 0.7 }} />
+                    </button>
+
+                    {/* Styled Option Dropdown Menu showing icons and colors */}
+                    {isDropdownOpen && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            marginTop: '4px',
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '6px',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                            zIndex: 1000,
+                            maxHeight: '260px',
+                            overflowY: 'auto',
+                            padding: '0.35rem'
+                        }}>
+                            {categories.map(c => {
+                                const isSelected = !isCreatingCategory && selectedType === c.name
+                                return (
+                                    <div
+                                        key={c.id}
+                                        onClick={() => {
+                                            handleTypeChange(c.name)
+                                            setIsDropdownOpen(false)
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '0.45rem 0.6rem',
+                                            borderRadius: '4px',
+                                            background: isSelected ? 'var(--color-surface-hover)' : 'transparent',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.1s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = isSelected ? 'var(--color-surface-hover)' : 'transparent'}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                            <div style={{
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '4px',
+                                                background: `${c.color}25`,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <CodexIcon name={c.icon} color={c.color} size={14} />
+                                            </div>
+                                            <span style={{ fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--color-accent)' : 'var(--color-text)' }}>
+                                                {c.name}
+                                            </span>
+                                        </div>
+                                        {isSelected && <Check size={14} color="var(--color-accent)" />}
+                                    </div>
+                                )
+                            })}
+                            <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.35rem 0' }} />
+                            <div
+                                onClick={() => {
+                                    handleTypeChange(NEW_CATEGORY_OPTION)
+                                    setIsDropdownOpen(false)
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.6rem',
+                                    padding: '0.45rem 0.6rem',
+                                    borderRadius: '4px',
+                                    color: 'var(--color-accent)',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                                <Plus size={16} />
+                                <span>+ New Category...</span>
                             </div>
-                        )}
-                        <select
-                            value={selectedType}
-                            onChange={e => handleTypeChange(e.target.value)}
-                            style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
-                        >
-                            {categories.map(c => (
-                                <option key={c.id} value={c.name}>{c.name}</option>
-                            ))}
-                            <option disabled>──────────</option>
-                            <option value={NEW_CATEGORY_OPTION}>+ New Category...</option>
-                        </select>
-                    </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* On-the-fly category creation box */}
@@ -249,16 +393,35 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
                 )}
 
                 {/* Entry Name */}
-                <label>
+                <div>
                     <span style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, fontSize: '0.9rem' }}>Entry Name *</span>
                     <input
                         type="text"
                         value={name}
                         onChange={e => setName(e.target.value)}
                         placeholder="E.g., Excalibur, Eldoria, Bob..."
-                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
+                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: duplicateEntry ? '1px solid var(--color-warning)' : '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
                     />
-                </label>
+                    {duplicateEntry && (
+                        <div style={{
+                            marginTop: '0.4rem',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '4px',
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            border: '1px solid var(--color-warning)',
+                            color: 'var(--color-warning)',
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem'
+                        }}>
+                            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                            <span>
+                                An entry named <strong>"{duplicateEntry.name}"</strong> already exists in {duplicateEntry.seriesId && !duplicateEntry.novelId ? 'the Series' : 'this Novel'} ({duplicateEntry.type}). Creating another may cause duplicates.
+                            </span>
+                        </div>
+                    )}
+                </div>
 
                 {/* Scope */}
                 <label>

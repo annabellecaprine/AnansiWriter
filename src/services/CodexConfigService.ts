@@ -90,8 +90,45 @@ export const DEFAULT_CODEX_CATEGORIES: CodexCategoryDefinition[] = [
         color: '#06b6d4',
         defaultFields: ['Source / Mechanism', 'Applications', 'Dangers / Limitations'],
         isBuiltIn: true
+    },
+    {
+        id: 'cat-story-guide',
+        name: 'Story Guide',
+        icon: 'Compass',
+        color: '#6366f1',
+        defaultFields: ['State of the World', 'Central Conflict', 'Current Era / Setting', 'Key Factions', 'Themes'],
+        isBuiltIn: true
     }
 ]
+
+/**
+ * Normalizes legacy or aliased category strings into their canonical names.
+ * Folds:
+ *  - 'object' -> 'Item'
+ *  - 'other', 'research note', 'research notes', 'note' -> 'Lore'
+ *  - 'state of the world', 'state-of-the-world' -> 'Story Guide'
+ *  - Case insensitivity: e.g. 'lore' -> 'Lore', 'character' -> 'Character'
+ */
+export function normalizeCategoryName(rawType: string | undefined | null, categories: CodexCategoryDefinition[] = []): string {
+    if (!rawType) return 'Lore'
+    const trimmed = rawType.trim()
+    const lower = trimmed.toLowerCase()
+
+    // 1. Direct legacy alias mappings
+    if (lower === 'object') return 'Item'
+    if (lower === 'other' || lower === 'research note' || lower === 'research notes' || lower === 'note') return 'Lore'
+    if (lower === 'state of the world' || lower === 'state-of-the-world' || lower === 'story guide') return 'Story Guide'
+
+    // 2. Match configured categories case-insensitively
+    const matched = categories.find(c => c.name.toLowerCase() === lower)
+    if (matched) return matched.name
+
+    // 3. Fallback match built-in defaults case-insensitively
+    const defaultMatched = DEFAULT_CODEX_CATEGORIES.find(c => c.name.toLowerCase() === lower)
+    if (defaultMatched) return defaultMatched.name
+
+    return trimmed
+}
 
 export interface CodexCategoryPreset {
     name: string;
@@ -280,6 +317,20 @@ export class CodexConfigService {
                     }
                 }
             }
+
+            // Ensure built-in 'Story Guide' category is present in configured categories
+            if (!parsed.some(c => c.name.toLowerCase() === 'story guide')) {
+                parsed.push({
+                    id: 'cat-story-guide',
+                    name: 'Story Guide',
+                    icon: 'Compass',
+                    color: '#6366f1',
+                    defaultFields: ['State of the World', 'Central Conflict', 'Current Era / Setting', 'Key Factions', 'Themes'],
+                    isBuiltIn: true
+                })
+                categoriesUpdated = true
+            }
+
             if (categoriesUpdated) {
                 await this.saveCategories(parsed)
             }

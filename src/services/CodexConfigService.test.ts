@@ -207,4 +207,47 @@ describe('CodexConfigService', () => {
         expect(keys).toContain('Distinguishing Traits')
         expect(keys).toContain('Rules')
     })
+
+    it('includes Story Guide category with canonical setting-neutral fields and auto-migrates existing settings', async () => {
+        const categories = await CodexConfigService.getCategories()
+        const storyGuide = categories.find(c => c.name === 'Story Guide')
+        expect(storyGuide).toBeDefined()
+        expect(storyGuide?.icon).toBe('Compass')
+        expect(storyGuide?.color).toBe('#6366f1')
+        expect(storyGuide?.defaultFields).toEqual([
+            'State of the World',
+            'Central Conflict',
+            'Current Era / Setting',
+            'Key Factions',
+            'Themes'
+        ])
+
+        // Test auto-migration when existing settings row is missing Story Guide
+        const customCategories = [
+            { id: 'cat-1', name: 'Character', icon: 'User', color: '#8b5cf6', defaultFields: ['Full Name', 'Pronouns', 'Status'] }
+        ]
+        await db.appSettings.put({ key: 'codex_categories', value: JSON.stringify(customCategories), updatedAt: Date.now() })
+
+        const migrated = await CodexConfigService.getCategories()
+        expect(migrated.some(c => c.name === 'Story Guide')).toBe(true)
+    })
+
+    it('correctly normalizes legacy type strings and aliases', async () => {
+        const { normalizeCategoryName } = await import('./CodexConfigService')
+        const categories = await CodexConfigService.getCategories()
+
+        // Case insensitivity
+        expect(normalizeCategoryName('lore', categories)).toBe('Lore')
+        expect(normalizeCategoryName('character', categories)).toBe('Character')
+        expect(normalizeCategoryName('CREATURE', categories)).toBe('Creature')
+
+        // Legacy aliases
+        expect(normalizeCategoryName('object', categories)).toBe('Item')
+        expect(normalizeCategoryName('other', categories)).toBe('Lore')
+        expect(normalizeCategoryName('research note', categories)).toBe('Lore')
+        expect(normalizeCategoryName('Research Note', categories)).toBe('Lore')
+        expect(normalizeCategoryName('research notes', categories)).toBe('Lore')
+        expect(normalizeCategoryName('state of the world', categories)).toBe('Story Guide')
+        expect(normalizeCategoryName('state-of-the-world', categories)).toBe('Story Guide')
+    })
 })
