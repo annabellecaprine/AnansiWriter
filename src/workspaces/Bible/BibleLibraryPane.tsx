@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Layers, Book, Download } from 'lucide-react'
 import type { BibleEntry } from '../../db/schema'
 import { BibleExporter } from '../../services/export/BibleExporter'
+import { CodexConfigService, type CodexCategoryDefinition } from '../../services/CodexConfigService'
+import { CodexIcon } from '../../components/shared/CodexIcon'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 
@@ -20,6 +22,17 @@ export function BibleLibraryPane({
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedType, setSelectedType] = useState<string | null>(null)
     const [isExporting, setIsExporting] = useState(false)
+    const [categories, setCategories] = useState<CodexCategoryDefinition[]>([])
+
+    useEffect(() => {
+        CodexConfigService.getCategories().then(setCategories)
+    }, [entries])
+
+    const categoryMap = useMemo(() => {
+        const map = new Map<string, CodexCategoryDefinition>()
+        categories.forEach(c => map.set(c.name.toLowerCase(), c))
+        return map
+    }, [categories])
 
     const handleExport = async () => {
         if (!activeNovelId || isExporting) return
@@ -109,57 +122,72 @@ export function BibleLibraryPane({
                         )}
                     </h3>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        {Object.entries(categoryCounts).map(([type, count]) => (
-                            <li key={type}>
-                                <button
-                                    onClick={() => setSelectedType(type === selectedType ? null : type)}
-                                    style={{
-                                        width: '100%',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        padding: '0.5rem',
-                                        background: selectedType === type ? 'var(--color-surface-hover)' : 'transparent',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        color: selectedType === type ? 'var(--color-accent)' : 'var(--color-text)',
-                                        textAlign: 'left'
-                                    }}
-                                >
-                                    <span>{type}</span>
-                                    <span style={{ fontSize: '0.8rem', background: 'var(--color-bg)', padding: '0.1rem 0.4rem', borderRadius: '10px' }}>{count}</span>
-                                </button>
-                            </li>
-                        ))}
+                        {Object.entries(categoryCounts).map(([type, count]) => {
+                            const catDef = categoryMap.get(type.toLowerCase())
+                            const catColor = catDef?.color || 'var(--color-accent)'
+                            return (
+                                <li key={type}>
+                                    <button
+                                        onClick={() => setSelectedType(type === selectedType ? null : type)}
+                                        style={{
+                                            width: '100%',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '0.5rem',
+                                            background: selectedType === type ? 'var(--color-surface-hover)' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            color: selectedType === type ? 'var(--color-accent)' : 'var(--color-text)',
+                                            textAlign: 'left'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <CodexIcon name={catDef?.icon} color={catColor} size={15} />
+                                            <span>{type}</span>
+                                        </div>
+                                        <span style={{ fontSize: '0.8rem', background: 'var(--color-bg)', padding: '0.1rem 0.4rem', borderRadius: '10px' }}>{count}</span>
+                                    </button>
+                                </li>
+                            )
+                        })}
                     </ul>
                 </div>
 
                 <h3 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Entries ({filteredEntries.length})</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    {filteredEntries.map(e => (
-                        <button
-                            key={e.id}
-                            onClick={() => onSelectEntry(e.id)}
-                            style={{
-                                width: '100%',
-                                textAlign: 'left',
-                                padding: '0.5rem 0.75rem',
-                                background: activeEntryId === e.id ? 'var(--color-accent-transparent, rgba(100, 150, 255, 0.1))' : 'transparent',
-                                border: 'none',
-                                borderLeft: activeEntryId === e.id ? '3px solid var(--color-accent)' : '3px solid transparent',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.25rem'
-                            }}
-                        >
-                            <span style={{ fontWeight: activeEntryId === e.id ? 600 : 500, color: activeEntryId === e.id ? 'var(--color-accent)' : 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                {e.name}
-                                {!e.novelId && e.seriesId && <span title="Series-level Entry"><Layers size={14} color="var(--color-warning)" /></span>}
-                            </span>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{e.type}</span>
-                        </button>
-                    ))}
+                    {filteredEntries.map(e => {
+                        const catDef = categoryMap.get(e.type.toLowerCase())
+                        const catColor = catDef?.color || 'var(--color-text-muted)'
+                        return (
+                            <button
+                                key={e.id}
+                                onClick={() => onSelectEntry(e.id)}
+                                style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '0.5rem 0.75rem',
+                                    background: activeEntryId === e.id ? 'var(--color-accent-transparent, rgba(100, 150, 255, 0.1))' : 'transparent',
+                                    border: 'none',
+                                    borderLeft: activeEntryId === e.id ? `3px solid ${catDef?.color || 'var(--color-accent)'}` : '3px solid transparent',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.25rem'
+                                }}
+                            >
+                                <span style={{ fontWeight: activeEntryId === e.id ? 600 : 500, color: activeEntryId === e.id ? 'var(--color-accent)' : 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    {e.name}
+                                    {!e.novelId && e.seriesId && <span title="Series-level Entry"><Layers size={14} color="var(--color-warning)" /></span>}
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: catColor, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <CodexIcon name={catDef?.icon} color={catColor} size={12} />
+                                    {e.type}
+                                </span>
+                            </button>
+                        )
+                    })}
                 </div>
             </div>
         </div>

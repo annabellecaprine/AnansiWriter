@@ -7,6 +7,7 @@ import { ModelsTab } from './tabs/ModelsTab'
 import { SnapshotsTab } from './tabs/SnapshotsTab'
 import { BackupTab } from './tabs/BackupTab'
 import { HealthTab } from './tabs/HealthTab'
+import { CodexSchemaTab } from './tabs/CodexSchemaTab'
 import {
     Settings as SettingsIcon,
     Key,
@@ -14,11 +15,12 @@ import {
     Camera,
     Sliders,
     Bot,
-    Download
+    Download,
+    BookOpen
 } from 'lucide-react'
 
 export default function SettingsWorkspace() {
-    const [activeTab, setActiveTab] = useState<'credentials' | 'models' | 'snapshots' | 'appearance' | 'health' | 'import' | 'export' | 'backup'>('credentials')
+    const [activeTab, setActiveTab] = useState<'credentials' | 'models' | 'snapshots' | 'appearance' | 'health' | 'import' | 'export' | 'backup' | 'codex'>('credentials')
 
     return (
         <div className="workspace-view" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -40,6 +42,9 @@ export default function SettingsWorkspace() {
                     <div className="settings-tab-row">
                         <button className={`settings-btn ${activeTab === 'appearance' ? 'active' : ''}`} onClick={() => setActiveTab('appearance')}>
                             <Sliders size={14} /> Appearance
+                        </button>
+                        <button className={`settings-btn ${activeTab === 'codex' ? 'active' : ''}`} onClick={() => setActiveTab('codex')}>
+                            <BookOpen size={14} /> Codex Schema
                         </button>
                     </div>
                 </div>
@@ -97,6 +102,7 @@ export default function SettingsWorkspace() {
                 {activeTab === 'import' && <ImportMigrationTab />}
                 {activeTab === 'export' && <ExportTab />}
                 {activeTab === 'backup' && <BackupTab />}
+                {activeTab === 'codex' && <CodexSchemaTab />}
             </div>
         </div>
     )

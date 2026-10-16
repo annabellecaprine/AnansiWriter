@@ -2,6 +2,7 @@ import { db } from '../db/database'
 import { v4 as uuidv4 } from 'uuid'
 import type { BibleEntry, FieldValue, EntityState, NarrativePosition } from '../db/schema'
 import { isNarrativePositionInRange } from './ai/narrativeComparator'
+import { CodexConfigService } from './CodexConfigService'
 
 export const BUILT_IN_TEMPLATES: Record<string, string[]> = {
     'Character': ['Full Name', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw'],
@@ -13,7 +14,10 @@ export const BUILT_IN_TEMPLATES: Record<string, string[]> = {
 export class BibleService {
     static async createEntryUsingTemplate(novelId: string, name: string, type: string, scope: 'project' | 'series' = 'project'): Promise<string> {
         const entryId = await this.createEntry(novelId, name, type, scope)
-        const templateFields = BUILT_IN_TEMPLATES[type] || []
+        const customCat = await CodexConfigService.getCategoryByName(type)
+        const templateFields = customCat?.defaultFields && customCat.defaultFields.length > 0
+            ? customCat.defaultFields
+            : (BUILT_IN_TEMPLATES[type] || [])
 
         for (const field of templateFields) {
             await this.addFieldValue(novelId, entryId, field, '')
