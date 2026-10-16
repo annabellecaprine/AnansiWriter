@@ -1,11 +1,17 @@
 import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BackupService } from '../../../services/BackupService'
 import { confirmAlert, confirmAction } from '../../../store/dialogStore'
-import { Download, Upload, AlertTriangle, Loader2 } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Loader2, Layers } from 'lucide-react'
+import { ImportProjectModal } from '../../../components/shared/ImportProjectModal'
+import { useWorkspaceStore } from '../../../store/workspaceStore'
 
 export function BackupTab() {
+    const navigate = useNavigate()
+    const { setActiveNovel } = useWorkspaceStore()
     const [isExporting, setIsExporting] = useState(false)
     const [isRestoring, setIsRestoring] = useState(false)
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
     const [progressStatus, setProgressStatus] = useState('')
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -157,12 +163,42 @@ export function BackupTab() {
                 </div>
             )}
 
+            <div className="surface-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: '4px solid var(--color-accent)' }}>
+                <div>
+                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--color-accent)' }}>Single Project Archive Import</h3>
+                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                        Looking to import a standalone novel or series archive (<code>.storyproject</code> / <code>.zip</code>) instead of overwriting your entire database? Use the project archive importer with duplicate collision protection.
+                    </p>
+                </div>
+                <div>
+                    <button
+                        className="btn outline"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        onClick={() => setIsProjectModalOpen(true)}
+                    >
+                        <Layers size={16} /> Import Project Archive (.storyproject / .zip)
+                    </button>
+                </div>
+            </div>
+
             <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--radius-md)', display: 'flex', gap: '1rem', color: 'var(--color-danger)' }}>
                 <AlertTriangle size={20} style={{ flexShrink: 0 }} />
                 <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.5 }}>
-                    <strong>Warning:</strong> Restoring a backup is a destructive action that completely replaces your active workspace cache. You will lose any un-exported drafts or stories. Upon completion, the application will forcefully reload to reset application state correctly.
+                    <strong>Warning:</strong> Restoring a full database backup is a destructive action that completely replaces your active workspace cache. You will lose any un-exported drafts or stories. Upon completion, the application will forcefully reload to reset application state correctly.
                 </p>
             </div>
+
+            <ImportProjectModal
+                isOpen={isProjectModalOpen}
+                onClose={() => setIsProjectModalOpen(false)}
+                onProjectImported={(novelId) => {
+                    setActiveNovel(novelId);
+                    navigate(`/novel/${novelId}/write`);
+                }}
+                onSystemRestored={() => {
+                    window.location.reload();
+                }}
+            />
         </div>
     )
 }

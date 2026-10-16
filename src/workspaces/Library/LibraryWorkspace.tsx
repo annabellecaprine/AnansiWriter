@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { db } from '../../db/database'
 import type { Series, Novel } from '../../db/schema'
 import { LibraryService } from '../../services/LibraryService'
-import { Plus, BookOpen, Layers, Settings, ArrowRightLeft, Trash2, Image as ImageIcon } from 'lucide-react'
+import { Plus, BookOpen, Layers, Settings, ArrowRightLeft, Trash2, Image as ImageIcon, Upload } from 'lucide-react'
 import { promptInput, confirmAction } from '../../store/dialogStore'
 import NovelTransferModal from '../../components/shared/NovelTransferModal'
 import SeriesMetadataModal from '../../components/shared/SeriesMetadataModal'
 import NovelMetadataModal from '../../components/shared/NovelMetadataModal'
+import { ImportProjectModal } from '../../components/shared/ImportProjectModal'
 import { NovelCard } from '../../components/shared/NovelCard'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 
@@ -20,6 +21,7 @@ export default function LibraryWorkspace({ onOpenSeries, onOpenNovel }: {
     const [transferNovelId, setTransferNovelId] = useState<string | null>(null)
     const [metaSeriesId, setMetaSeriesId] = useState<string | null>(null)
     const [metaNovelId, setMetaNovelId] = useState<string | null>(null)
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false)
 
     const [covers, setCovers] = useState<Record<string, string>>({})
     const [seriesMeta, setSeriesMeta] = useState<Record<string, { novelCount: number, titles: string[] }>>({})
@@ -131,9 +133,12 @@ export default function LibraryWorkspace({ onOpenSeries, onOpenNovel }: {
         <div style={{ padding: '2rem', height: '100%', overflowY: 'auto' }}>
             <h1 style={{ marginBottom: '2rem' }}>My Library</h1>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
                 <button className="btn" onClick={handleCreateSeries}><Plus size={16} /> New Series</button>
                 <button className="btn" onClick={handleCreateStandaloneNovel}><Plus size={16} /> New Standalone Novel</button>
+                <button className="btn outline" onClick={() => setIsImportModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Upload size={16} /> Import Project / Backup
+                </button>
             </div>
 
             <section style={{ marginBottom: '3rem' }}>
@@ -221,6 +226,18 @@ export default function LibraryWorkspace({ onOpenSeries, onOpenNovel }: {
 
             {metaSeriesId && <SeriesMetadataModal seriesId={metaSeriesId} onClose={() => setMetaSeriesId(null)} onSaved={() => { setMetaSeriesId(null); loadLibrary(); }} />}
             {metaNovelId && <NovelMetadataModal novelId={metaNovelId} onClose={() => setMetaNovelId(null)} onSaved={() => { setMetaNovelId(null); loadLibrary(); }} />}
+
+            <ImportProjectModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onProjectImported={async (novelId) => {
+                    await loadLibrary()
+                    onOpenNovel(novelId)
+                }}
+                onSystemRestored={async () => {
+                    await loadLibrary()
+                }}
+            />
 
         </div>
     )

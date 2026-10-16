@@ -1,17 +1,21 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileArchive, CheckCircle2, AlertTriangle, Flame, BookText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Upload, FileArchive, CheckCircle2, AlertTriangle, Flame, BookText, Database, Sparkles, Layers } from 'lucide-react';
 import { NovelCrafterParser, ImportPackage } from '../../../services/import/NovelCrafterParser';
 import { db } from '../../../db/database';
 import { useWorkspaceStore } from '../../../store/workspaceStore';
 import { confirmAction, confirmAlert } from '../../../store/dialogStore';
+import { ImportProjectModal } from '../../../components/shared/ImportProjectModal';
 
 export function ImportMigrationTab() {
+    const navigate = useNavigate();
     const { setActiveNovel } = useWorkspaceStore();
     const [file, setFile] = useState<File | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [parsedPkg, setParsedPkg] = useState<ImportPackage | null>(null);
     const [isImporting, setIsImporting] = useState(false);
+    const [isUniversalModalOpen, setIsUniversalModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,10 +165,78 @@ export function ImportMigrationTab() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'flex-start', width: '100%' }}>
             <h2 style={{ fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text)' }}>Data Migration & Import</h2>
             <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: '800px' }}>
-                Seamlessly transplant entire novel manuscripts, scene hierarchies, and codex relational databases directly into your local offline indexedDB environments.
+                Seamlessly import project archives, restore full system backups, or migrate external novel manuscripts, scene hierarchies, and codex relational databases directly into your local offline indexedDB environments.
             </p>
 
+            {/* Universal Importer Banner */}
+            <div style={{
+                width: '100%',
+                padding: '1.5rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, rgba(203, 166, 247, 0.12) 0%, rgba(137, 180, 250, 0.08) 100%)',
+                border: '1px solid var(--color-accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1.5rem',
+                flexWrap: 'wrap'
+            }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxWidth: '650px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1.05rem', color: 'var(--color-accent)' }}>
+                        <Sparkles size={18} /> Universal Project & Backup Importer
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                        Import any AnansiWriter project archive (<code>.storyproject</code> / <code>.zip</code>), full system backup (<code>.json</code>), or NovelCrafter export. Includes automatic inspection, integrity validation, and duplicate collision safety.
+                    </p>
+                </div>
+                <button
+                    className="btn primary"
+                    onClick={() => setIsUniversalModalOpen(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
+                >
+                    <Upload size={16} /> Open Universal Importer
+                </button>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem', width: '100%' }}>
+
+                {/* AnansiWriter Project Archive Card */}
+                <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-accent)' }}>
+                        <Layers size={20} /> AnansiWriter Project Archive (.storyproject / .zip)
+                    </h3>
+                    <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--color-text-muted)', flex: 1 }}>
+                        Import an exported novel or series archive. Restores complete manuscript structures, scenes, codex entries, relationship graphs, and attached binary assets with smart collision protection (import as new copy or overwrite).
+                    </p>
+                    <div>
+                        <button
+                            className="btn primary"
+                            onClick={() => setIsUniversalModalOpen(true)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        >
+                            <Upload size={16} /> Import Project Archive...
+                        </button>
+                    </div>
+                </div>
+
+                {/* AnansiWriter Full System Backup Card */}
+                <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-info)' }}>
+                        <Database size={20} /> AnansiWriter Full System Backup (.json)
+                    </h3>
+                    <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--color-text-muted)', flex: 1 }}>
+                        Restore your complete local IndexedDB database from a full system backup JSON file created via Settings &gt; Backup. Safely inspects table definitions and asks for confirmation before replacing existing data.
+                    </p>
+                    <div>
+                        <button
+                            className="btn outline"
+                            onClick={() => setIsUniversalModalOpen(true)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
+                        >
+                            <Database size={16} /> Restore System Backup...
+                        </button>
+                    </div>
+                </div>
 
                 {/* NovelCrafter Active Import Card */}
                 <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
@@ -268,6 +340,18 @@ export function ImportMigrationTab() {
                 </div>
 
             </div>
+
+            <ImportProjectModal
+                isOpen={isUniversalModalOpen}
+                onClose={() => setIsUniversalModalOpen(false)}
+                onProjectImported={(novelId) => {
+                    setActiveNovel(novelId);
+                    navigate(`/novel/${novelId}/write`);
+                }}
+                onSystemRestored={() => {
+                    window.location.reload();
+                }}
+            />
         </div>
     );
 }

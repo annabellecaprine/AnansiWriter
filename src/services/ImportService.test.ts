@@ -66,7 +66,7 @@ describe('ImportService', () => {
         await expect(ImportService.validateAndImportProject(file)).rejects.toThrow('CollisionDetected')
     })
 
-    it('should import as copy with new UUIDs', async () => {
+    it('should import as copy with new UUIDs and append (Copy) to title', async () => {
         const blob = await ExportService.exportProject(novelId)
         const file = new File([blob], 'test.storyproject')
 
@@ -78,5 +78,41 @@ describe('ImportService', () => {
         // The original novel should still exist
         const original = await db.novels.get(novelId)
         expect(original).toBeDefined()
+        expect(original?.title).toBe('Import Test Novel')
+
+        // The copy should exist with (Copy) appended
+        const copy = await db.novels.get(newId)
+        expect(copy).toBeDefined()
+        expect(copy?.title).toBe('Import Test Novel (Copy)')
+    })
+
+    it('should peek project archive metadata and detect collision', async () => {
+        const blob = await ExportService.exportProject(novelId)
+        const file = new File([blob], 'test.storyproject')
+
+        const peek = await ImportService.peekProjectArchive(file)
+        expect(peek.isEncrypted).toBe(false)
+        expect(peek.collision).toBe(true)
+        expect(peek.manifest?.novel.title).toBe('Import Test Novel')
+        expect(peek.counts?.chapters).toBe(1)
+        expect(peek.counts?.scenes).toBe(1)
+    })
+
+    it('should overwrite existing novel when overwrite is true', async () => {
+        const blob = await ExportService.exportProject(novelId)
+        const file = new File([blob], 'test.storyproject')
+
+        // Mutate original scene
+        await db.scenes.update(sceneId, { name: 'Mutated Scene' })
+        const mutated = await db.scenes.get(sceneId)
+        expect(mutated?.name).toBe('Mutated Scene')
+
+        // Import with overwrite
+        const importedId = await ImportService.validateAndImportProject(file, { overwrite: true })
+        expect(importedId).toBe(novelId)
+
+        // Scene should be restored to 'Scene 1'
+        const restored = await db.scenes.get(sceneId)
+        expect(restored?.name).toBe('Scene 1')
     })
 })
