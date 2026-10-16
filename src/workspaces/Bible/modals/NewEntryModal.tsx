@@ -9,6 +9,7 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
     const [type, setType] = useState('Character')
     const [description, setDescription] = useState('')
     const [tagsInput, setTagsInput] = useState('')
+    const [scope, setScope] = useState<'project' | 'series'>('project')
 
     const allTypes = [...Object.keys(BUILT_IN_TEMPLATES), 'Research Note', 'External Reference', 'Story Guide', 'Creature', 'Culture', 'Event', 'Ability / Magic', 'Technology', 'Lore / Concept', 'Location', 'Item', 'Custom']
     const uniqueTypes = Array.from(new Set(allTypes))
@@ -17,7 +18,7 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
         if (!activeNovelId || !name.trim()) return
 
         const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
-        const entryId = await BibleService.createEntryUsingTemplate(activeNovelId, name.trim(), type)
+        const entryId = await BibleService.createEntryUsingTemplate(activeNovelId, name.trim(), type, scope)
         await BibleService.updateEntry(activeNovelId, entryId, { tags, description: description.trim() })
 
         onEntryCreated(entryId)
@@ -27,6 +28,7 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
         setDescription('')
         setTagsInput('')
         setType('Character')
+        setScope('project')
     }
 
     return (
@@ -42,6 +44,20 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
                 <label>
                     <span style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>Name *</span>
                     <input autoFocus type="text" value={name} onChange={e => setName(e.target.value)} placeholder="E.g., Bob" style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)' }} />
+                </label>
+
+                <label>
+                    <span style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>Codex Scope *</span>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input type="radio" value="project" checked={scope === 'project'} onChange={() => setScope('project')} />
+                            This Novel Only
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input type="radio" value="series" checked={scope === 'series'} onChange={() => setScope('series')} />
+                            Entire Series (Shared)
+                        </label>
+                    </div>
                 </label>
 
                 <label>

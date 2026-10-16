@@ -3,7 +3,7 @@ import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { promptInput } from '../../store/dialogStore'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, User, Plus, Edit3, FolderPlus, GripVertical, MoreHorizontal, History } from 'lucide-react'
+import { MapPin, User, Plus, Edit3, FolderPlus, GripVertical, MoreHorizontal, History, Wand2 } from 'lucide-react'
 import { WritingService } from '../../services/WritingService'
 import { ArchiveService } from '../../services/ArchiveService'
 import SceneActionsMenu from '../../components/shared/SceneActionsMenu'
@@ -12,6 +12,8 @@ import { DndContext, closestCenter, useSensor, useSensors, PointerSensor } from 
 import { SortableContext, verticalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import PlanningEditor from './PlanningEditor'
+import { useAIStore } from '../../store/aiStore'
+import { AIWritableFieldCapability } from '../../components/ai/AITypes'
 
 function SceneCard({ scene, charactersMap, onClick, onReload, disableDrag = false }: { scene: any; charactersMap: Record<string, string>; onClick: () => void; onReload?: () => void; disableDrag?: boolean }) {
     if (disableDrag) {
@@ -35,6 +37,7 @@ function SceneCardUI({ scene, charactersMap, onClick, onReload, disableDrag = fa
     const [summaryText, setSummaryText] = useState(scene.summary || '')
     const [showActionsMenu, setShowActionsMenu] = useState(false)
     const actionsButtonRef = useRef<HTMLButtonElement>(null)
+    const summaryRef = useRef<HTMLTextAreaElement>(null)
 
     useEffect(() => {
         setSummaryText(scene.summary || '')
@@ -121,41 +124,82 @@ function SceneCardUI({ scene, charactersMap, onClick, onReload, disableDrag = fa
                 </div>
             </div>
 
-            <textarea
-                className="scene-summary-input"
-                value={summaryText}
-                onChange={(e) => setSummaryText(e.target.value)}
-                onBlur={(e) => {
-                    handleSummaryBlur()
-                    e.target.style.border = '1px solid transparent'
-                    e.target.style.background = 'transparent'
-                }}
-                placeholder="Draft a brief summary..."
-                style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--color-text-muted)',
-                    marginTop: '0.4rem',
-                    width: '100%',
-                    background: 'transparent',
-                    border: '1px solid transparent',
-                    resize: 'none',
-                    lineHeight: 1.4,
-                    minHeight: '60px',
-                    fontFamily: 'inherit',
-                    padding: '0.4rem',
-                    borderRadius: '4px',
-                    outline: 'none',
-                    overflow: 'hidden',
-                    transition: 'all var(--transition-fast)'
-                }}
-                onFocus={(e) => {
-                    e.target.style.border = '1px solid var(--color-border)'
-                    e.target.style.background = 'var(--color-bg)'
-                }}
-                onKeyDown={(e) => {
-                    e.stopPropagation()
-                }}
-            />
+            <div style={{ position: 'relative' }}>
+                <textarea
+                    ref={summaryRef}
+                    className="scene-summary-input"
+                    value={summaryText}
+                    onChange={(e) => setSummaryText(e.target.value)}
+                    onBlur={(e) => {
+                        handleSummaryBlur()
+                        e.target.style.border = '1px solid transparent'
+                        e.target.style.background = 'transparent'
+                    }}
+                    placeholder="Draft a brief summary..."
+                    style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-muted)',
+                        marginTop: '0.4rem',
+                        width: '100%',
+                        background: 'transparent',
+                        border: '1px solid transparent',
+                        resize: 'none',
+                        lineHeight: 1.4,
+                        minHeight: '60px',
+                        fontFamily: 'inherit',
+                        padding: '0.4rem',
+                        paddingRight: '1.5rem',
+                        borderRadius: '4px',
+                        outline: 'none',
+                        overflow: 'hidden',
+                        transition: 'all var(--transition-fast)'
+                    }}
+                    onFocus={(e) => {
+                        e.target.style.border = '1px solid var(--color-border)'
+                        e.target.style.background = 'var(--color-bg)'
+                    }}
+                    onKeyDown={(e) => {
+                        e.stopPropagation()
+                    }}
+                />
+
+                <button
+                    className="icon-btn"
+                    type="button"
+                    style={{ position: 'absolute', top: '0.5rem', right: '0.2rem', padding: '0.15rem', color: 'var(--color-accent)' }}
+                    title="Invoke AI Editor"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const el = summaryRef.current;
+                        if (!el) return;
+
+                        const start = el.selectionStart;
+                        const end = el.selectionEnd;
+
+                        const capability: AIWritableFieldCapability = {
+                            kind: 'summary',
+                            contextEntityId: scene.id,
+                            captureSelection: () => ({ id: `summary-${Date.now()}`, from: start, to: end, contextType: 'summary' }),
+                            getSelectedText: (bm) => bm.from === bm.to ? null : el.value.substring(bm.from, bm.to),
+                            applyResult: (bm, text) => {
+                                el.focus();
+                                el.setRangeText(text, bm.from, bm.to, 'end');
+                                // Dispatch synthetic input to maintain controlled React state overrides smoothly
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                            },
+                            onCancel: (bm) => {
+                                el.focus();
+                                el.setSelectionRange(bm.from, bm.to);
+                            },
+                            getFieldConstraints: () => ({ description: "Scene Summary. Outline precise outcomes gracefully within 200 words." })
+                        };
+                        useAIStore.getState().openHub(capability);
+                    }}
+                >
+                    <Wand2 size={12} />
+                </button>
+            </div>
 
             {showActionsMenu && (
                 <SceneActionsMenu

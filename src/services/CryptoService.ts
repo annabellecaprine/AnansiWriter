@@ -30,9 +30,9 @@ export class CryptoService {
     /**
      * Encrypts a binary Blob using AES-GCM.
      * The resulting Blob contains:
-     * [0..15] 16 bytes IV (Initialization Vector)
-     * [16..31] 16 bytes Salt (for PBKDF2 derivation)
-     * [32...] Ciphertext (encrypted ZIP payload) + Auth Tag
+     * [0..11] 12 bytes IV (Initialization Vector)
+     * [12..27] 16 bytes Salt (for PBKDF2 derivation)
+     * [28...] Ciphertext (encrypted ZIP payload) + Auth Tag
      */
     static async encryptBlob(blob: Blob, password: string): Promise<Blob> {
         const salt = window.crypto.getRandomValues(new Uint8Array(16))

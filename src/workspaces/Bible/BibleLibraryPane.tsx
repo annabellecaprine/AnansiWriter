@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Filter } from 'lucide-react'
+import { Plus, Search, Layers, Book } from 'lucide-react'
 import type { BibleEntry } from '../../db/schema'
 
 export function BibleLibraryPane({
@@ -113,8 +113,9 @@ export function BibleLibraryPane({
                                 gap: '0.25rem'
                             }}
                         >
-                            <span style={{ fontWeight: activeEntryId === e.id ? 600 : 500, color: activeEntryId === e.id ? 'var(--color-accent)' : 'var(--color-text)' }}>
+                            <span style={{ fontWeight: activeEntryId === e.id ? 600 : 500, color: activeEntryId === e.id ? 'var(--color-accent)' : 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 {e.name}
+                                {!e.novelId && e.seriesId && <span title="Series-level Entry"><Layers size={14} color="var(--color-warning)" /></span>}
                             </span>
                             <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{e.type}</span>
                         </button>

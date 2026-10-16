@@ -15,6 +15,7 @@ export function HealthTab() {
     const [historyMaxAgeDays, setHistoryMaxAgeDays] = useState<number>(90)
     const [historyMaxSizeMb, setHistoryMaxSizeMb] = useState<number>(50)
     const [metadataOnlyHistory, setMetadataOnlyHistory] = useState<boolean>(false)
+    const [allowBuiltinDelete, setAllowBuiltinDelete] = useState<boolean>(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
 
     useEffect(() => {
@@ -31,6 +32,9 @@ export function HealthTab() {
         if (maxAge) setHistoryMaxAgeDays(Number(maxAge.value))
         if (maxSize) setHistoryMaxSizeMb(Number(maxSize.value))
         if (metaOnly) setMetadataOnlyHistory(metaOnly.value === 'true')
+
+        const allowDel = localStorage.getItem('anansi_allow_builtin_delete') === 'true'
+        setAllowBuiltinDelete(allowDel)
 
         const projectCount = await db.series.count()
         const sceneCount = await db.scenes.count()
@@ -57,6 +61,11 @@ export function HealthTab() {
 
         setSaveSuccess(true)
         setTimeout(() => setSaveSuccess(false), 3000)
+    }
+
+    const toggleAllowBuiltinDelete = (checked: boolean) => {
+        setAllowBuiltinDelete(checked)
+        localStorage.setItem('anansi_allow_builtin_delete', String(checked))
     }
 
     return (
@@ -147,6 +156,19 @@ export function HealthTab() {
                     {saveSuccess && (
                         <span style={{ color: '#28a745', fontSize: '0.85rem' }}>Policies updated!</span>
                     )}
+                </div>
+            </div>
+
+            {/* Developer / Recovery Options */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-error)' }}>Developer / Recovery Options</h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                    <input
+                        type="checkbox"
+                        checked={allowBuiltinDelete}
+                        onChange={e => toggleAllowBuiltinDelete(e.target.checked)}
+                    />
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Allow manual deletion of Built-in System Prompts (Overrides UI Locks)</label>
                 </div>
             </div>
         </div>

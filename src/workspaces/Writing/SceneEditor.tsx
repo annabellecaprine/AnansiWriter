@@ -16,8 +16,10 @@ import SceneActionsMenu from '../../components/shared/SceneActionsMenu'
 import {
     Bold, Italic, Strikethrough, Code, Heading1, Heading2, Heading3,
     List, ListOrdered, Quote, Minus, Undo, Redo, Eye, EyeOff,
-    PanelRight, PanelLeft, AtSign, Save, MoreHorizontal
+    PanelRight, PanelLeft, AtSign, Save, MoreHorizontal, Wand2
 } from 'lucide-react'
+import { useAIStore } from '../../store/aiStore'
+import { AIWritableFieldCapability } from '../../components/ai/AITypes'
 
 // Debounce timeouts
 let autosaveTimeout: any = null
@@ -60,6 +62,16 @@ export default function SceneEditor() {
     // Initialize TipTap Editor
     const editor = useEditor({
         extensions: getEditorExtensions(),
+        editorProps: {
+            handleKeyDown: (view, event) => {
+                if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'a') {
+                    event.preventDefault()
+                    document.getElementById('scene-ai-trigger')?.click()
+                    return true
+                }
+                return false
+            }
+        },
         content: '<p>Loading scene content...</p>',
         onUpdate: ({ editor }) => {
             if (!activeSceneId) return
@@ -529,6 +541,34 @@ export default function SceneEditor() {
                         </button>
 
                         <div style={{ flex: 1 }} />
+
+                        <button
+                            id="scene-ai-trigger"
+                            type="button"
+                            className="btn primary"
+                            onClick={() => {
+                                const { from, to } = editor.state.selection;
+                                const capability: AIWritableFieldCapability = {
+                                    kind: 'prose',
+                                    captureSelection: () => ({ id: `prose-${Date.now()}`, from, to, contextType: 'prose' }),
+                                    getSelectedText: (bm) => bm.from === bm.to ? null : editor.state.doc.textBetween(bm.from, bm.to, ' '),
+                                    applyResult: (bm, text) => {
+                                        // Wraps insertion neatly into standard history transactions seamlessly
+                                        editor.chain().focus().insertContentAt({ from: bm.from, to: bm.to }, text).run()
+                                    },
+                                    onCancel: (bm) => {
+                                        editor.chain().focus().setTextSelection({ from: bm.from, to: bm.to }).run()
+                                    },
+                                    getFieldConstraints: () => ({ description: "Native manuscript prose. Ensure flow and voice consistency." })
+                                };
+                                useAIStore.getState().openHub(capability)
+                            }}
+                            title="Invoke AI Assistant"
+                            aria-label="Invoke AI"
+                            style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'var(--color-accent)' }}
+                        >
+                            <Wand2 size={14} /> AI
+                        </button>
 
                         <button
                             className="btn primary"

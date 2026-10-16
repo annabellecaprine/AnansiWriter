@@ -68,6 +68,8 @@ export default function PromptEditorPane({ activePrompt, categories, reloadPromp
     }
 
     const isSystem = activePrompt.scope === 'built-in'
+    const allowDeleteOverride = localStorage.getItem('anansi_allow_builtin_delete') === 'true'
+    const canDelete = !isSystem || allowDeleteOverride
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--color-surface)', overflowY: 'auto' }}>
@@ -97,8 +99,8 @@ export default function PromptEditorPane({ activePrompt, categories, reloadPromp
                     <button
                         className="icon-btn"
                         title="Move to Trash"
-                        style={{ color: isSystem ? 'var(--color-text-muted)' : 'var(--color-error)', opacity: isSystem ? 0.5 : 1 }}
-                        disabled={isSystem}
+                        style={{ color: !canDelete ? 'var(--color-text-muted)' : 'var(--color-error)', opacity: !canDelete ? 0.5 : 1 }}
+                        disabled={!canDelete}
                         onClick={handleDelete}
                     >
                         <Trash2 size={18} />

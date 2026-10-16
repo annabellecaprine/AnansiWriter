@@ -20,6 +20,7 @@ export class OpenAIProvider implements ProviderAdapter {
             body: JSON.stringify({
                 model: payload.modelId || 'gpt-4o-mini',
                 temperature: payload.temperature ?? 0.7,
+                max_tokens: payload.maxTokens,
                 messages: payload.messages && payload.messages.length > 0 ? payload.messages : [
                     { role: "system", content: payload.systemInstruction },
                     { role: "user", content: payload.userPrompt }

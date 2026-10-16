@@ -28,6 +28,10 @@ export class AIChatService {
         await db.aiChatThreads.update(threadId, { ...updates, updatedAt: Date.now() })
     }
 
+    static async updateContextReferences(threadId: string, contextReferences: { type: string, id: string, name: string }[]): Promise<void> {
+        await db.aiChatThreads.update(threadId, { contextReferences, updatedAt: Date.now() })
+    }
+
     static async addMessage(threadId: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
         const thread = await db.aiChatThreads.get(threadId)
         if (!thread) throw new Error('Thread not found')

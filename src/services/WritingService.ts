@@ -1,4 +1,5 @@
 import { db } from '../db/database'
+import { extractTextFromJson } from './textUtils'
 
 export interface HierarchyNode {
     id: string
@@ -140,6 +141,11 @@ export class WritingService {
                 await db.sceneRevisions.where({ sceneId: s.id }).delete()
             }
         } else if (type === 'Act') {
+            // Reparent chapters that belonged to this act (make them orphan/standalone)
+            const orphanedChapters = await db.chapters.where({ actId: id }).toArray()
+            for (const c of orphanedChapters) {
+                await db.chapters.update(c.id, { actId: undefined, updatedAt: Date.now() })
+            }
             await db.acts.delete(id)
         }
     }
@@ -168,7 +174,7 @@ export class WritingService {
         }
     }
 
-    static async getScene(sceneId: string): Promise<any> {
+    static async getScene(sceneId: string) {
         return db.scenes.get(sceneId)
     }
 
@@ -241,6 +247,7 @@ export class WritingService {
 
         for (const s of scenes) {
             let wasModified = false
+            const contentClone = structuredClone(s.content)
             const traverseAndReplace = (node: any) => {
                 if (!node) return
                 if (node.type === 'text' && node.text) {
@@ -257,21 +264,14 @@ export class WritingService {
                 }
             }
 
-            if (s.content) {
-                traverseAndReplace(s.content)
+            if (contentClone) {
+                traverseAndReplace(contentClone)
                 if (wasModified) {
-                    // Recalculate generic word boundaries after tree replacement is confirmed
-                    const rawTextExtracted = (node: any): string => {
-                        if (!node) return ''
-                        if (node.type === 'text') return node.text || ''
-                        if (node.content) return node.content.map(rawTextExtracted).join('')
-                        return ' '
-                    }
-                    const updatedText = rawTextExtracted(s.content)
+                    const updatedText = extractTextFromJson(contentClone)
                     const updatedWordCount = updatedText.split(/\s+/).filter(Boolean).length
-                    await db.scenes.update(s.id, { content: s.content, wordCount: updatedWordCount, updatedAt: Date.now() })
+                    await db.scenes.update(s.id, { content: contentClone, wordCount: updatedWordCount, updatedAt: Date.now() })
                     // Capture snapshot for revisions safety-net!
-                    await this.createSceneRevision(s.id, novelId, s.content, updatedWordCount)
+                    await this.createSceneRevision(s.id, novelId, contentClone, updatedWordCount)
                 }
             }
         }

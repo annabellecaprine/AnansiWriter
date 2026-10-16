@@ -5,6 +5,7 @@ import { ExportTab } from './tabs/ExportTab'
 import { AppearanceTab } from './tabs/AppearanceTab'
 import { ModelsTab } from './tabs/ModelsTab'
 import { SnapshotsTab } from './tabs/SnapshotsTab'
+import { BackupTab } from './tabs/BackupTab'
 import { HealthTab } from './tabs/HealthTab'
 import {
     Settings as SettingsIcon,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react'
 
 export default function SettingsWorkspace() {
-    const [activeTab, setActiveTab] = useState<'credentials' | 'models' | 'snapshots' | 'appearance' | 'health' | 'import' | 'export'>('credentials')
+    const [activeTab, setActiveTab] = useState<'credentials' | 'models' | 'snapshots' | 'appearance' | 'health' | 'import' | 'export' | 'backup'>('credentials')
 
     return (
         <div className="workspace-view" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -56,8 +57,11 @@ export default function SettingsWorkspace() {
                 </div>
 
                 <div className="settings-tab-group">
-                    <span className="settings-tab-label">Data</span>
+                    <span className="settings-tab-label">Data & Storage</span>
                     <div className="settings-tab-row">
+                        <button className={`settings-btn ${activeTab === 'backup' ? 'active' : ''}`} onClick={() => setActiveTab('backup')}>
+                            <Database size={14} /> Full System Backup
+                        </button>
                         <button className={`settings-btn ${activeTab === 'import' ? 'active' : ''}`} onClick={() => setActiveTab('import')}>
                             <Download size={14} /> Import / Migration
                         </button>
@@ -92,6 +96,7 @@ export default function SettingsWorkspace() {
                 {activeTab === 'health' && <HealthTab />}
                 {activeTab === 'import' && <ImportMigrationTab />}
                 {activeTab === 'export' && <ExportTab />}
+                {activeTab === 'backup' && <BackupTab />}
             </div>
         </div>
     )

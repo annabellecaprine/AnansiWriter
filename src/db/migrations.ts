@@ -1,16 +1,16 @@
 import type { AnansiDatabase } from './database'
 
 /**
- * Applies database schema migrations for versions > 1.
- * Version 1 is defined as the baseline in database.ts.
+ * Applies database schema migrations for versions > 4.
+ * Versions 1–4 are defined as the baseline in database.ts.
  */
 export function applyMigrations(_db: AnansiDatabase) {
-    _db.version(2).stores({
-        assetLinks: 'id, [projectId+assetId], [projectId+targetId], projectId, assetId, targetId, targetType, role'
+    _db.version(5).stores({
+        assetLinks: 'id, [novelId+assetId], [novelId+targetId], [seriesId+assetId], [seriesId+targetId], novelId, seriesId, assetId, targetId, targetType, role'
     })
 
-    _db.version(3).stores({
-        promptCategories: 'id, [projectId+isSystem], projectId, sortOrder',
-        prompts: 'id, projectId, categoryId, scope, isFavorite, isTrashed'
+    _db.version(6).stores({
+        promptCategories: 'id, [novelId+isSystem], novelId, sortOrder',
+        prompts: 'id, novelId, seriesId, categoryId, scope, isFavorite, isTrashed'
     })
 }

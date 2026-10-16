@@ -5,8 +5,10 @@ import Underline from '@tiptap/extension-underline'
 import { InternalLink } from './extensions/InternalLink'
 import {
     Bold, Italic, Strikethrough, Code, Heading1, Heading2, Heading3,
-    List, ListOrdered, Quote, Minus, Undo, Redo
+    List, ListOrdered, Quote, Minus, Undo, Redo, Wand2
 } from 'lucide-react'
+import { useAIStore } from '../../store/aiStore'
+import { AIWritableFieldCapability } from '../ai/AITypes'
 
 // Extensions should be instantiated per-editor
 const getEditorExtensions = () => [
@@ -20,6 +22,16 @@ const getEditorExtensions = () => [
 export default function TipTapEditor({ content, onUpdate, focusMode = false }: { content: any, onUpdate: (json: any) => void, focusMode?: boolean }) {
     const editor = useEditor({
         extensions: getEditorExtensions(),
+        editorProps: {
+            handleKeyDown: (view, event) => {
+                if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'a') {
+                    event.preventDefault()
+                    document.getElementById('tip-tap-ai-trigger')?.click()
+                    return true
+                }
+                return false
+            }
+        },
         content: '<p></p>',
         onUpdate: ({ editor }) => {
             onUpdate(editor.getJSON())
@@ -169,6 +181,35 @@ export default function TipTapEditor({ content, onUpdate, focusMode = false }: {
                         style={{ padding: '0.35rem' }}
                     >
                         <Redo size={16} />
+                    </button>
+
+                    <div style={{ width: '1px', height: '18px', background: 'var(--color-border)', margin: '0 0.35rem' }} />
+
+                    <button
+                        id="tip-tap-ai-trigger"
+                        type="button"
+                        className="btn primary"
+                        onClick={() => {
+                            const { from, to } = editor.state.selection;
+                            const capability: AIWritableFieldCapability = {
+                                kind: 'prose',
+                                captureSelection: () => ({ id: `prose-${Date.now()}`, from, to, contextType: 'prose' }),
+                                getSelectedText: (bm) => bm.from === bm.to ? null : editor.state.doc.textBetween(bm.from, bm.to, ' '),
+                                applyResult: (bm, text) => {
+                                    // Wraps insertion neatly into standard history transactions seamlessly
+                                    editor.chain().focus().insertContentAt({ from: bm.from, to: bm.to }, text).run()
+                                },
+                                onCancel: (bm) => {
+                                    editor.chain().focus().setTextSelection({ from: bm.from, to: bm.to }).run()
+                                },
+                                getFieldConstraints: () => ({ description: "Native manuscript prose. Ensure flow and voice consistency." })
+                            };
+                            useAIStore.getState().openHub(capability)
+                        }}
+                        title="Invoke AI Assistant"
+                        style={{ padding: '0.35rem 0.75rem', display: 'flex', gap: '0.4rem', alignItems: 'center', background: 'var(--color-accent)' }}
+                    >
+                        <Wand2 size={16} /> <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>AI</span>
                     </button>
                 </div>
             )}

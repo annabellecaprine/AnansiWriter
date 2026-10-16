@@ -7,6 +7,8 @@ import { X, MessageSquare, Plus, Archive, Pin, Trash2, Send, Layers, Loader2 } f
 import ContextPickerModal from './ContextPickerModal'
 import { AIService } from '../../services/AIService'
 import { confirmAction, confirmAlert } from '../../store/dialogStore'
+import { ContextEngine, type ContextAssembly } from '../../services/ai/ContextEngine'
+import ContextPreview from '../ContextPreview'
 
 export default function MasterChatOverlay() {
     const { isChatPaneOpen, toggleChatPane, activeNovelId } = useWorkspaceStore()
@@ -14,8 +16,10 @@ export default function MasterChatOverlay() {
     const [archivedThreads, setArchivedThreads] = useState<AIChatThread[]>([])
     const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
     const [showContextPicker, setShowContextPicker] = useState(false)
+    const [showContextReceipt, setShowContextReceipt] = useState(false)
     const [chatInput, setChatInput] = useState('')
     const [selectedContext, setSelectedContext] = useState<{ type: string, id: string, name: string }[]>([])
+    const [chatAssembly, setChatAssembly] = useState<ContextAssembly | null>(null)
     const [isGenerating, setIsGenerating] = useState(false)
     const activeThread = activeThreads.find(t => t.id === selectedThreadId)
 
@@ -40,7 +44,37 @@ export default function MasterChatOverlay() {
         return () => { mounted = false }
     }, [isChatPaneOpen, activeNovelId, selectedThreadId])
 
+    // Restore selectedContext when switching threads
+    useEffect(() => {
+        if (activeThread) {
+            setSelectedContext(activeThread.contextReferences || [])
+        } else {
+            setSelectedContext([])
+        }
+    }, [selectedThreadId, activeThread?.id])
+
+    // Keep chat context assembly updated
+    useEffect(() => {
+        if (!activeNovelId) {
+            setChatAssembly(null)
+            return
+        }
+        let mounted = true
+        ContextEngine.assembleChatContext(activeNovelId, selectedContext).then(assembly => {
+            if (mounted) setChatAssembly(assembly)
+        })
+        return () => { mounted = false }
+    }, [activeNovelId, selectedContext])
+
     if (!isChatPaneOpen) return null
+
+    const handleUpdateContext = async (newRefs: { type: string, id: string, name: string }[]) => {
+        setSelectedContext(newRefs)
+        if (selectedThreadId) {
+            await AIChatService.updateContextReferences(selectedThreadId, newRefs)
+            setActiveThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, contextReferences: newRefs } : t))
+        }
+    }
 
     const handleNewChat = async () => {
         if (!activeNovelId) return
@@ -67,30 +101,10 @@ export default function MasterChatOverlay() {
         }
 
         try {
-            let systemInstruction = "You are a helpful creative writing assistant."
-            if (selectedContext.length > 0) {
-                systemInstruction += "\n\nContext to consider:"
-                const ext = (n: any): string => {
-                    if (!n) return ''
-                    if (typeof n === 'string') return n
-                    if (n.type === 'text' && n.text) return n.text
-                    if (Array.isArray(n)) return n.map(ext).join(' ')
-                    if (n.content) return ext(n.content)
-                    return ''
-                }
-                for (const c of selectedContext) {
-                    if (c.type === 'Scene') {
-                        const scene = await db.scenes.get(c.id)
-                        systemInstruction += `\n\n[Scene: ${c.name}]\n${scene ? ext(scene.content) : ''}`
-                    } else if (c.type === 'Chapter') {
-                        const scenes = await db.scenes.where('chapterId').equals(c.id).sortBy('sortOrder')
-                        systemInstruction += `\n\n[Chapter: ${c.name}]\n${scenes.map(s => ext(s.content)).join('\n\n')}`
-                    } else {
-                        const entry = await db.bibleEntries.get(c.id)
-                        systemInstruction += `\n\n[${c.type}: ${c.name}]\n${entry?.description || ''}`
-                    }
-                }
-            }
+            // Shared ContextEngine resolution produces identical serialization & canon-aware filtering
+            const assembly = await ContextEngine.assembleChatContext(activeNovelId, selectedContext)
+            setChatAssembly(assembly)
+            const systemInstruction = assembly.assembledSystemInstruction
 
             const messagesForAi = [
                 { role: 'system' as 'system' | 'user' | 'assistant', content: systemInstruction },
@@ -247,15 +261,30 @@ export default function MasterChatOverlay() {
                             </div>
                             <div style={{ borderTop: '1px solid var(--color-border)', padding: '0.75rem', background: 'var(--color-surface)' }}>
                                 {selectedContext.length > 0 && (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginBottom: '0.5rem' }}>
-                                        {selectedContext.map(c => (
-                                            <span key={c.id} className="chip">
-                                                {c.name}
-                                                <button className="icon-btn" style={{ padding: '0.1rem', margin: '-0.1rem' }} onClick={() => setSelectedContext(px => px.filter(x => x.id !== c.id))}>
-                                                    <X size={10} />
-                                                </button>
-                                            </span>
-                                        ))}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', flex: 1 }}>
+                                            {selectedContext.map(c => (
+                                                <span key={c.id} className="chip">
+                                                    {c.name}
+                                                    <button className="icon-btn" style={{ padding: '0.1rem', margin: '-0.1rem' }} onClick={() => handleUpdateContext(selectedContext.filter(x => x.id !== c.id))}>
+                                                        <X size={10} />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <button
+                                            className="btn outline"
+                                            onClick={() => setShowContextReceipt(prev => !prev)}
+                                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem', whiteSpace: 'nowrap' }}
+                                            title="Toggle Context Preview Receipt"
+                                        >
+                                            {chatAssembly ? `~${chatAssembly.totalEstimatedTokens} t` : 'Receipt'}
+                                        </button>
+                                    </div>
+                                )}
+                                {showContextReceipt && chatAssembly && (
+                                    <div style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '0.5rem' }}>
+                                        <ContextPreview assembly={chatAssembly} />
                                     </div>
                                 )}
                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
@@ -297,7 +326,7 @@ export default function MasterChatOverlay() {
                     novelId={activeNovelId}
                     initialSelection={selectedContext}
                     onClose={() => setShowContextPicker(false)}
-                    onContextSelected={setSelectedContext}
+                    onContextSelected={handleUpdateContext}
                 />
             )}
         </div>

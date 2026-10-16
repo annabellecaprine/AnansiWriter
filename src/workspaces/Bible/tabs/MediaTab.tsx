@@ -43,7 +43,7 @@ export default function MediaTab({ entry, assets, onUpdated }: { entry: any, ass
         await db.assetLinks
             .where({ novelId: activeNovelId, targetId: entry.id })
             .filter(l => l.role === 'primary_portrait')
-            .modify({ role: 'Reference' })
+            .modify({ role: 'reference' })
 
         // Set the chosen one to primary
         await db.assetLinks.update(linkId, { role: 'primary_portrait' })

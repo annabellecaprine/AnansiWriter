@@ -53,7 +53,7 @@ export class ImportService {
 
         // 3. Collision Detection
         const originalProjectId = dbJson.project.id
-        const existingBase = await db.series.get(originalProjectId)
+        const existingBase = await db.novels.get(originalProjectId)
 
         if (existingBase && !options?.importAsCopy) {
             throw new Error('CollisionDetected')
@@ -74,8 +74,11 @@ export class ImportService {
         const processRecords = (records: any[] = [], referenceKeys: string[] = []) => {
             return records.map(record => {
                 if (options?.importAsCopy) {
-                    const newId = crypto.randomUUID()
-                    idMap.set(record.id, newId)
+                    let newId = idMap.get(record.id)
+                    if (!newId) {
+                        newId = crypto.randomUUID()
+                        idMap.set(record.id, newId)
+                    }
                     record.id = newId
 
                     // Re-wire parent/project linkages
@@ -133,7 +136,6 @@ export class ImportService {
 
         // 5. Transactional Commit
         await db.transaction('rw', db.tables, async () => {
-            await db.series.add(dbJson.project)
             if (series.length) await db.series.bulkAdd(series)
             if (books.length) await db.novels.bulkAdd(books)
             if (acts.length) await db.acts.bulkAdd(acts)

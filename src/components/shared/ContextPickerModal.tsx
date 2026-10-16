@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../db/database'
-import { useWorkspaceStore } from '../../store/workspaceStore'
 import { X, CheckSquare, Square, Info, Search } from 'lucide-react'
-import { ContextEngine } from '../../services/ai/ContextEngine'
+import { estimateTokens } from '../../services/ai/ContextEngine'
+import { extractTextFromJson } from '../../services/textUtils'
 
 interface ContextItem {
     id: string
     type: string
     name: string
-    sizeEstimate?: number // Estimated token or char count
+    sizeEstimate?: number // Estimated token count
 }
 
 interface Props {
@@ -30,6 +30,7 @@ export default function ContextPickerModal({ novelId, onClose, onContextSelected
     // Lists
     const [scenes, setScenes] = useState<any[]>([])
     const [codex, setCodex] = useState<any[]>([])
+    const [planningItems, setPlanningItems] = useState<{ id: string, type: string, name: string, text: string, estimatedTokens: number }[]>([])
 
     const [tokenEstimate, setTokenEstimate] = useState(0)
 
@@ -37,32 +38,75 @@ export default function ContextPickerModal({ novelId, onClose, onContextSelected
         let mounted = true
         Promise.all([
             db.scenes.where({ novelId }).and(s => !s.isTrashed).toArray(),
-            db.bibleEntries.where({ novelId }).and(b => !b.isTrashed).toArray()
-        ]).then(([sList, bList]) => {
+            db.bibleEntries.where({ novelId }).and(b => !b.isTrashed).toArray(),
+            db.novels.get(novelId),
+            db.acts.where({ novelId }).toArray(),
+            db.chapters.where({ novelId }).and(c => !c.isTrashed).toArray()
+        ]).then(([sList, bList, novel, acts, chapters]) => {
             if (mounted) {
                 setScenes(sList.sort((a, b) => a.sortOrder - b.sortOrder))
                 setCodex(bList)
+
+                const plans: { id: string, type: string, name: string, text: string, estimatedTokens: number }[] = []
+                if (novel?.planningContent) {
+                    const text = extractTextFromJson(novel.planningContent)
+                    if (text.trim()) {
+                        plans.push({ id: novel.id, type: 'Planning_Novel', name: `Novel Plan: ${novel.title}`, text, estimatedTokens: estimateTokens(text) })
+                    }
+                }
+                for (const act of (acts || [])) {
+                    if (act.planningContent) {
+                        const text = extractTextFromJson(act.planningContent)
+                        if (text.trim()) {
+                            plans.push({ id: act.id, type: 'Planning_Act', name: `Act Plan: ${act.name}`, text, estimatedTokens: estimateTokens(text) })
+                        }
+                    }
+                }
+                for (const ch of (chapters || [])) {
+                    if (ch.planningContent) {
+                        const text = extractTextFromJson(ch.planningContent)
+                        if (text.trim()) {
+                            plans.push({ id: ch.id, type: 'Planning_Chapter', name: `Chapter Plan: ${ch.name}`, text, estimatedTokens: estimateTokens(text) })
+                        }
+                    }
+                }
+                for (const sc of sList) {
+                    if (sc.planningContent) {
+                        const text = extractTextFromJson(sc.planningContent)
+                        if (text.trim()) {
+                            plans.push({ id: sc.id, type: 'Planning_Scene', name: `Scene Plan: ${sc.name}`, text, estimatedTokens: estimateTokens(text) })
+                        }
+                    }
+                }
+                setPlanningItems(plans)
             }
         })
         return () => { mounted = false }
     }, [novelId])
 
-    // Super naive token estimator (just counting selected instances)
     useEffect(() => {
-        // Assume rough average string length -> token mapping as an immediate visual indicator
-        // 1 token = ~4 characters
-        let lengthEstimate = 0
+        let totalTokens = 0
         for (const item of Array.from(selected.values())) {
             if (item.type === 'Scene') {
                 const s = scenes.find(x => x.id === item.id)
-                lengthEstimate += (s?.wordCount || 500) * 5
+                if (s) {
+                    const text = extractTextFromJson(s.content)
+                    totalTokens += estimateTokens(`[Scene: ${s.name}]\n${text}`)
+                }
             } else if (item.type.startsWith('Codex_')) {
                 const c = codex.find(x => x.id === item.id)
-                lengthEstimate += (c?.description?.length || 500)
+                if (c) {
+                    totalTokens += estimateTokens(`[Codex: ${c.name} (${c.type})]\nDescription: ${c.description || ''}`)
+                }
+            } else if (item.type.startsWith('Planning')) {
+                const p = planningItems.find(x => x.id === item.id)
+                if (p) {
+                    totalTokens += estimateTokens(`[Planning: ${p.name}]\n${p.text}`)
+                }
             }
         }
-        setTokenEstimate(Math.floor(lengthEstimate / 4))
-    }, [selected, scenes, codex])
+        setTokenEstimate(totalTokens)
+    }, [selected, scenes, codex, planningItems])
 
     const toggleSelection = (item: ContextItem) => {
         const next = new Map(selected)
@@ -86,6 +130,10 @@ export default function ContextPickerModal({ novelId, onClose, onContextSelected
 
     const filteredScenes = scenes.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
     const filteredCodex = codex.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    const filteredPlanning = planningItems.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.text.toLowerCase().includes(searchQuery.toLowerCase())
+    )
 
     const renderCheckbox = (itemId: string) => {
         const isChecked = selected.has(itemId)
@@ -178,8 +226,26 @@ export default function ContextPickerModal({ novelId, onClose, onContextSelected
                     )}
 
                     {activeTab === 'planning' && (
-                        <div style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
-                            Planning blocks context mapping coming soon.
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {filteredPlanning.length === 0 ? (
+                                <div style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                                    No planning content recorded for this novel hierarchy.
+                                </div>
+                            ) : (
+                                filteredPlanning.map(p => (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => toggleSelection({ id: p.id, type: p.type, name: p.name, sizeEstimate: p.estimatedTokens })}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem', background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: '1px solid var(--color-border)' }}
+                                    >
+                                        {renderCheckbox(p.id)}
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{p.name}</div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>~{p.estimatedTokens} tokens</div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     )}
                 </div>

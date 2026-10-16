@@ -71,8 +71,14 @@ export class AIService {
         sourceId?: string,
         executedPromptSnapshot?: any,
         inputVariablesResolved?: Record<string, any>,
-        messages?: { role: 'system' | 'user' | 'assistant', content: string }[]
+        messages?: { role: 'system' | 'user' | 'assistant', content: string }[],
+        temperature?: number,
+        maxTokens?: number
     ): Promise<string> {
+
+        // Defined precedence: call-level override > Prompt configuration default > provider default (0.7 / 2000)
+        const effectiveTemperature = temperature ?? executedPromptSnapshot?.temperature ?? 0.7
+        const effectiveMaxTokens = maxTokens ?? executedPromptSnapshot?.maxOutputTokens ?? 2000
 
         // Check if an active proxy configuration exists in the ProxyConfigService
         const activeProxy = await ProxyConfigService.getActiveProxyConfig()
@@ -86,7 +92,7 @@ export class AIService {
             effectiveModel = activeProxy.model || model
             effectiveApiKey = activeProxy.apiKey || (await this.getApiKey('openai') || await this.getApiKey('chutes') || await this.getApiKey('openrouter') || '')
             effectiveBaseUrl = activeProxy.proxyUrl
-            providerAdapter = new OpenAICompatibleProvider()
+            providerAdapter = this.getProviderAdapter('openai-compatible')
         } else {
             providerAdapter = this.getProviderAdapter(providerName)
             const key = await this.getApiKey(providerName)
@@ -103,28 +109,31 @@ export class AIService {
             systemInstruction: systemInstruction,
             userPrompt: userPrompt,
             baseUrl: effectiveBaseUrl,
-            messages: messages
+            messages: messages,
+            temperature: effectiveTemperature,
+            maxTokens: effectiveMaxTokens
         }
 
         // The adapter ensures no global credentials mutate backward natively
         const response: AIResponse = await providerAdapter.generate(payload, effectiveApiKey)
 
-        // Log to history tracking table
+        // Log to history tracking table with exact effective parameters
         await db.aiRequestHistory.add({
             id: uuidv4(),
             novelId,
             promptName: executedPromptSnapshot ? executedPromptSnapshot.name : 'Staging Invocation',
-            executedPromptSnapshot,
+            executedPromptSnapshot: executedPromptSnapshot || undefined,
             executionMetadata: {
-                temperatureUsed: 0.7, // stub
-                outputTokensUsed: response.totalTokens, // approx
+                temperatureUsed: effectiveTemperature,
+                maxTokensUsed: effectiveMaxTokens,
+                outputTokensUsed: response.totalTokens,
                 inputVariablesResolved: inputVariablesResolved || {}
             },
             modelId: effectiveModel,
             tokenCount: response.totalTokens,
             sourceId,
             timestamp: Date.now(),
-            payload: { systemInstruction, userPrompt, response: response.content }
+            payload: { systemInstruction, userPrompt, response: response.content, temperature: effectiveTemperature, maxTokens: effectiveMaxTokens }
         })
 
         return response.content

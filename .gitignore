@@ -10,3 +10,7 @@ test-results
 
 # Vite
 *.local
+
+# Nested clone & scratch
+/AnansiWriter
+test-backup.ts

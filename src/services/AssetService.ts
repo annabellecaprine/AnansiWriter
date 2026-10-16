@@ -42,6 +42,15 @@ export class AssetService {
 
         if (assetIds.length === 0) return []
 
-        return await db.assets.where('id').anyOf(assetIds).toArray()
+        const assets = await db.assets.where('id').anyOf(assetIds).toArray()
+
+        return assets.map(a => {
+            const link = links.find(l => l.assetId === a.id)
+            return {
+                ...a,
+                linkId: link?.id,
+                linkRole: link?.role
+            }
+        })
     }
 }

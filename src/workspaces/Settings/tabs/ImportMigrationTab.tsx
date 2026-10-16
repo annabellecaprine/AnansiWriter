@@ -241,29 +241,29 @@ export function ImportMigrationTab() {
                     )}
                 </div> {/* End NovelCrafter Card */}
 
-                {/* Placeholder: Campfire */}
+                {/* Discovery: Campfire */}
                 <div style={{ background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', opacity: 0.6, pointerEvents: 'none', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text)' }}>
                         <Flame size={20} /> Campfire Archive
                     </h3>
                     <div style={{ marginBottom: '1rem' }}>
-                        <span style={{ fontSize: '0.65rem', background: 'var(--color-bg)', padding: '0.1rem 0.3rem', borderRadius: '4px', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Coming Soon</span>
+                        <span style={{ fontSize: '0.65rem', background: 'var(--color-bg)', padding: '0.1rem 0.3rem', borderRadius: '4px', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Sample Archive Required</span>
                     </div>
                     <p style={{ margin: '0', fontSize: '0.85rem', color: 'var(--color-text-muted)', flex: 1 }}>
-                        Natively restore .JSON archives downloaded from your Campfire writing dashboard. Structurally maps nested hierarchies into Acts and Chapters.
+                        Campfire migration requires representative archive fixtures to establish verified schema mapping. Importer remains disabled pending sample acquisition.
                     </p>
                 </div>
 
-                {/* Placeholder: Scrivener */}
+                {/* Discovery: Scrivener */}
                 <div style={{ background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', opacity: 0.6, pointerEvents: 'none', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text)' }}>
                         <BookText size={20} /> Scrivener .scriv
                     </h3>
                     <div style={{ marginBottom: '1rem' }}>
-                        <span style={{ fontSize: '0.65rem', background: 'var(--color-bg)', padding: '0.1rem 0.3rem', borderRadius: '4px', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Coming Soon</span>
+                        <span style={{ fontSize: '0.65rem', background: 'var(--color-bg)', padding: '0.1rem 0.3rem', borderRadius: '4px', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Sample Archive Required</span>
                     </div>
                     <p style={{ margin: '0', fontSize: '0.85rem', color: 'var(--color-text-muted)', flex: 1 }}>
-                        Parses Scrivener XML binder manifests to transpose root drafts safely into the native Anansi scene tree.
+                        Scrivener migration requires representative project fixtures (.scriv package or interchange export) to establish verified schema mapping. Importer remains disabled pending sample acquisition.
                     </p>
                 </div>
 

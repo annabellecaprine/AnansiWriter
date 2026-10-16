@@ -4,10 +4,16 @@ import { v4 as uuidv4 } from 'uuid'
 
 export class SnapshotService {
     static async createManualSnapshot(novelId: string, name: string, reason: string = 'manual'): Promise<Snapshot> {
-        // Collect full project data snapshot
-        const project = await db.series.get(novelId)
-        const series = await db.series.where('novelId').equals(novelId).toArray()
-        const books = await db.novels.where('novelId').equals(novelId).toArray()
+        // Collect full project data snapshot based on activeNovelId
+        const novel = await db.novels.get(novelId)
+        if (!novel) throw new Error('Novel not found for snapshotting.')
+
+        // We'll snapshot the primary Novel (target of activeNovelId)
+        const books = [novel]
+
+        // We'll also lazily snapshot its parent Series if it exists natively
+        const series = novel.seriesId ? await db.series.where('id').equals(novel.seriesId).toArray() : []
+
         const acts = await db.acts.where('novelId').equals(novelId).toArray()
         const chapters = await db.chapters.where('novelId').equals(novelId).toArray()
         const scenes = await db.scenes.where('novelId').equals(novelId).toArray()
@@ -15,9 +21,12 @@ export class SnapshotService {
         const fieldValues = await db.fieldValues.where('novelId').equals(novelId).toArray()
         const relationships = await db.relationships.where('novelId').equals(novelId).toArray()
         const assets = await db.assets.where('novelId').equals(novelId).toArray()
+        // Store asset metadata without blobs to avoid consuming IndexedDB quota.
+        // Asset binaries must be restored from a full .storyproject export if needed.
+        const assetsMeta = assets.map(({ blob: _, ...meta }) => meta)
 
         const snapshotData = {
-            project,
+            project: novel, // Store the root target reference securely for restore extraction
             series,
             books,
             acts,
@@ -26,6 +35,7 @@ export class SnapshotService {
             bibleEntries,
             fieldValues,
             relationships,
+            assetsMeta,
             assetsCount: assets.length
         }
 
@@ -70,7 +80,6 @@ export class SnapshotService {
         // Atomic update of project tables
         await db.transaction('rw', [
             db.series,
-            db.series,
             db.novels,
             db.acts,
             db.chapters,
@@ -79,9 +88,9 @@ export class SnapshotService {
             db.fieldValues,
             db.relationships
         ], async () => {
-            // Clear existing project items
-            await db.series.where('novelId').equals(novelId).delete()
-            await db.novels.where('novelId').equals(novelId).delete()
+            // Clear existing project items using correct primary indices securely
+            // Series isn't strictly cleared by novelId because multiple novels share it, we overwrite in put later if needed
+            await db.novels.where('id').equals(novelId).delete()
             await db.acts.where('novelId').equals(novelId).delete()
             await db.chapters.where('novelId').equals(novelId).delete()
             await db.scenes.where('novelId').equals(novelId).delete()
@@ -90,7 +99,6 @@ export class SnapshotService {
             await db.relationships.where('novelId').equals(novelId).delete()
 
             // Restore from snapshot data
-            if (data.project) await db.series.put(data.project)
             if (data.series) await db.series.bulkPut(data.series)
             if (data.books) await db.novels.bulkPut(data.books)
             if (data.acts) await db.acts.bulkPut(data.acts)
@@ -99,6 +107,12 @@ export class SnapshotService {
             if (data.bibleEntries) await db.bibleEntries.bulkPut(data.bibleEntries)
             if (data.fieldValues) await db.fieldValues.bulkPut(data.fieldValues)
             if (data.relationships) await db.relationships.bulkPut(data.relationships)
+
+            // Note: Asset binaries are NOT restored from snapshots (excluded for storage efficiency).
+            // Use a full .storyproject backup to restore assets.
+            if (data.assetsCount > 0) {
+                console.warn(`Snapshot contained ${data.assetsCount} asset(s) whose binary data was not preserved. Use a .storyproject export for full asset recovery.`)
+            }
         })
     }
 }

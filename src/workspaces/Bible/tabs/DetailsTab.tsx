@@ -2,21 +2,56 @@ import { useState } from 'react'
 import { BibleService } from '../../../services/BibleService'
 import { useWorkspaceStore } from '../../../store/workspaceStore'
 import { Plus, Trash2 } from 'lucide-react'
-import { promptInput } from '../../../store/dialogStore'
+import { promptInput, confirmAlert } from '../../../store/dialogStore'
+import type { EntityState } from '../../../db/schema'
 
 export default function DetailsTab({ entry, fields, onUpdated }: { entry: any, fields: any[], onUpdated: () => void }) {
     const { activeNovelId } = useWorkspaceStore()
+    const [savingFieldId, setSavingFieldId] = useState<string | null>(null)
 
     const handleUpdateField = async (fieldId: string, value: string) => {
         if (!activeNovelId) return
-        await BibleService.updateFieldValue(activeNovelId, fieldId, { value })
-        onUpdated()
+        setSavingFieldId(fieldId)
+        try {
+            await BibleService.updateFieldValue(activeNovelId, fieldId, { value })
+            onUpdated()
+        } catch (e: any) {
+            await confirmAlert({
+                title: 'Save Failed',
+                message: `Failed to update field: ${e.message}`,
+                isDestructive: true
+            })
+        } finally {
+            setSavingFieldId(null)
+        }
+    }
+
+    const handleUpdateState = async (fieldId: string, state: EntityState) => {
+        if (!activeNovelId) return
+        try {
+            await BibleService.updateFieldValue(activeNovelId, fieldId, { state })
+            onUpdated()
+        } catch (e: any) {
+            await confirmAlert({
+                title: 'State Update Failed',
+                message: `Failed to change state: ${e.message}`,
+                isDestructive: true
+            })
+        }
     }
 
     const handleDeleteField = async (fieldId: string) => {
         if (!activeNovelId) return
-        await BibleService.deleteFieldValue(activeNovelId, fieldId)
-        onUpdated()
+        try {
+            await BibleService.deleteFieldValue(activeNovelId, fieldId)
+            onUpdated()
+        } catch (e: any) {
+            await confirmAlert({
+                title: 'Delete Failed',
+                message: `Failed to remove field: ${e.message}`,
+                isDestructive: true
+            })
+        }
     }
 
     const handleAddField = async () => {
@@ -28,8 +63,16 @@ export default function DetailsTab({ entry, fields, onUpdated }: { entry: any, f
         })
 
         if (keyName && keyName.trim() !== '') {
-            await BibleService.addFieldValue(activeNovelId, entry.id, keyName.trim(), '')
-            onUpdated()
+            try {
+                await BibleService.addFieldValue(activeNovelId, entry.id, keyName.trim(), '')
+                onUpdated()
+            } catch (e: any) {
+                await confirmAlert({
+                    title: 'Add Field Failed',
+                    message: e.message,
+                    isDestructive: true
+                })
+            }
         }
     }
 
@@ -49,12 +92,22 @@ export default function DetailsTab({ entry, fields, onUpdated }: { entry: any, f
                     {fields.map(f => (
                         <div key={f.id} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', background: 'var(--color-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
                             <div style={{ width: '200px', flexShrink: 0, fontWeight: 600 }}>
-                                {f.fieldKey}
-                                <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem' }}>
-                                    <span className="status-badge" style={{ fontSize: '0.7rem' }}>{f.state || 'Canon'}</span>
+                                <div>{f.fieldKey}</div>
+                                <div style={{ marginTop: '0.4rem' }}>
+                                    <select
+                                        value={f.state || 'Canon'}
+                                        onChange={(e) => handleUpdateState(f.id, e.target.value as EntityState)}
+                                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', borderRadius: '4px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                                    >
+                                        <option value="Canon">Canon</option>
+                                        <option value="Drafted">Drafted</option>
+                                        <option value="Planned">Planned</option>
+                                        <option value="Retconned">Retconned</option>
+                                        <option value="Discarded">Discarded</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div style={{ flex: 1, display: 'flex', gap: '0.5rem' }}>
+                            <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                                 <textarea
                                     defaultValue={f.value}
                                     onBlur={(e) => handleUpdateField(f.id, e.target.value)}

@@ -4,12 +4,13 @@ import type { Novel } from '../../db/schema'
 import { ExportService } from '../../services/ExportService'
 import { EpubService } from '../../services/EpubService'
 import { PdfService } from '../../services/PdfService'
+import { BibleExporter } from '../../services/export/BibleExporter'
 import { CryptoService } from '../../services/CryptoService'
 import { XCircle, Download, Lock } from 'lucide-react'
 
 export default function ExportModal({ novelId, projectName, onClose }: { novelId: string, projectName: string, onClose: () => void }) {
     const [books, setBooks] = useState<Novel[]>([])
-    const [format, setFormat] = useState<'storyproject' | 'epub' | 'pdf'>('storyproject')
+    const [format, setFormat] = useState<'storyproject' | 'epub' | 'pdf' | 'codex'>('storyproject')
     const [targetBookId, setTargetBookId] = useState<string>('all')
     const [password, setPassword] = useState('')
     const [isEncrypted, setIsEncrypted] = useState(false)
@@ -63,6 +64,10 @@ export default function ExportModal({ novelId, projectName, onClose }: { novelId
                 // Triggers native browser print-to-pdf pipeline
                 await PdfService.generatePdf(b.id, novelId, { profile: 'manuscript' })
                 onClose()
+            } else if (format === 'codex') {
+                // Codex (Bible) export: one markdown file per entry, zipped with an index.
+                const blob = await BibleExporter.exportBible(novelId)
+                triggerDownload(blob, `${projectName.replace(/[^a-zA-Z0-9_\-]/g, '_')}_codex.zip`)
             }
         } catch (err: any) {
             setError(err.message)
@@ -77,7 +82,7 @@ export default function ExportModal({ novelId, projectName, onClose }: { novelId
         a.href = url
         a.download = filename
         a.click()
-        URL.revokeObjectURL(url)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
         onClose()
     }
 
@@ -96,9 +101,11 @@ export default function ExportModal({ novelId, projectName, onClose }: { novelId
                             <option value="storyproject">.storyproject (Archive / Backup)</option>
                             <option value="epub">.epub (Drafting / Reading)</option>
                             <option value="pdf">.pdf (Manuscript Printing)</option>
+                            <option value="codex">.zip (Codex Export — all Bible entries as markdown)</option>
                         </select>
                     </div>
 
+                    {format !== 'codex' && (
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Target</label>
                         <select className="input" value={targetBookId} onChange={e => setTargetBookId(e.target.value)} style={{ width: '100%', padding: '0.6rem' }}>
@@ -108,6 +115,14 @@ export default function ExportModal({ novelId, projectName, onClose }: { novelId
                             ))}
                         </select>
                     </div>
+                    )}
+
+                    {format === 'codex' && (
+                        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                            Exports every Bible entry in this project as its own markdown file
+                            (with YAML frontmatter and attributes), zipped with an index. Trashed entries are excluded.
+                        </p>
+                    )}
 
                     {format === 'storyproject' && (
                         <div style={{ marginTop: '0.5rem', background: isEncrypted ? 'var(--color-bg)' : 'transparent', padding: isEncrypted ? '1rem' : '0', borderRadius: '4px', transition: 'all 0.2s' }}>

@@ -27,7 +27,7 @@ export default function BibleDashboard() {
         return (
             <div className="workspace-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>
-                    Please open or create a project to access the Bible.
+                    Please open or create a novel to access the Codex.
                 </p>
             </div>
         )

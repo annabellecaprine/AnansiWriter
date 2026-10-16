@@ -20,6 +20,7 @@ export class OpenRouterProvider implements ProviderAdapter {
             body: JSON.stringify({
                 model: payload.modelId,
                 temperature: payload.temperature,
+                max_tokens: payload.maxTokens,
                 messages: payload.messages && payload.messages.length > 0 ? payload.messages : [
                     { role: "system", content: payload.systemInstruction },
                     { role: "user", content: payload.userPrompt }

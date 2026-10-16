@@ -177,6 +177,36 @@ export default function GeneralTab({ activePrompt, reloadPrompts, categories }: 
                         </div>
                     </div>
 
+                    {/* Applicable Fields */}
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.3rem' }}>Applicable Contexts (Where this prompt can be used)</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', background: 'var(--color-bg)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+                            {[
+                                { id: 'prose', label: 'Manuscript Prose' },
+                                { id: 'summary', label: 'Scene Summary' },
+                                { id: 'codexText', label: 'Codex Description' },
+                                { id: 'sceneNotes', label: 'Scene Beats / Notes' },
+                                { id: 'chat', label: 'AI Chat' }
+                            ].map(field => (
+                                <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', opacity: isSystem ? 0.5 : 1 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={(activePrompt.applicableFields || []).includes(field.id as any)}
+                                        disabled={isSystem}
+                                        onChange={(e) => {
+                                            const current = activePrompt.applicableFields || [];
+                                            const next = e.target.checked
+                                                ? [...current, field.id as any]
+                                                : current.filter(f => f !== field.id);
+                                            handleUpdate({ applicableFields: next });
+                                        }}
+                                    />
+                                    {field.label}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
                 </div>
 
                 {/* Inference Settings */}

@@ -32,8 +32,8 @@ export default function InstructionsTab({ activePrompt, reloadPrompts }: { activ
     ])
     const definedInputs = activePrompt.inputs?.map(i => i.name) || []
 
-    const missingVariables = [...referencedVars].filter(v => !definedInputs.includes(v))
-    const unusedInputs = definedInputs.filter(v => !referencedVars.has(v))
+    const missingVariables = [...referencedVars].filter(v => v !== 'content' && !definedInputs.includes(v))
+    const unusedInputs = definedInputs.filter(v => v !== 'content' && !referencedVars.has(v))
 
     return (
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>

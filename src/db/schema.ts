@@ -232,7 +232,20 @@ export interface PromptCategory {
     novelId?: ID;
     name: string;
     sortOrder: number;
-    isSystem: boolean; // built-in category that cannot be normally deleted
+    isSystem: boolean; // Cannot be deleted
+}
+
+export type AIWritableFieldKind = "prose" | "summary" | "codexText" | "sceneNotes" | "chat";
+
+export interface PromptContextRequirement {
+    source: string; // e.g., 'selectedText', 'currentScene', 'sceneSummary', 'relevantCodex'
+    required?: boolean;
+}
+
+export interface PromptPreset {
+    id: string; // internal UUID distinct array id
+    name: string;
+    values: Record<string, any>;
 }
 
 export interface PromptInputRule {
@@ -287,6 +300,11 @@ export interface Prompt {
     // Instructions
     systemInstruction: string;
     userTemplate: string;
+
+    // Field Applicability & Structural Rules
+    applicableFields: AIWritableFieldKind[];
+    presets: PromptPreset[];
+    contextRecipe: PromptContextRequirement[];
 
     // Inputs Specification
     inputs: PromptInputRule[];
@@ -343,6 +361,7 @@ export interface StagingSession {
         modelId?: string;
         promptId?: string;
         userRole?: string;
+        characterId?: string;
     }
     createdAt: number;
     updatedAt: number;
@@ -356,6 +375,7 @@ export interface AIRequestHistory {
     executedPromptSnapshot?: Prompt;        // Complete configuration mapping at execution time
     executionMetadata?: {                   // Specific overrides or actual inference settings used
         temperatureUsed: number;
+        maxTokensUsed?: number;
         outputTokensUsed: number;
         inputVariablesResolved: Record<string, any>;
     };

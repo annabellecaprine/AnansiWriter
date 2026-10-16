@@ -1,34 +1,13 @@
 import { db } from '../db/database'
-
-function extractTextFromJson(node: any): string {
-    if (!node) return ''
-    if (typeof node === 'string') return node
-    if (node.type === 'text' && node.text) return node.text
-    if (Array.isArray(node)) return node.map(extractTextFromJson).join(' ')
-    if (node.content) return extractTextFromJson(node.content)
-    return ''
-}
-
-function extractExplicitLinks(node: any, result: { id: string, name: string }[]) {
-    if (!node) return
-    if (node.type === 'internalLink' && node.attrs?.id) {
-        result.push({ id: node.attrs.id, name: node.attrs.name || 'Explicit Link' })
-    }
-    if (Array.isArray(node)) {
-        node.forEach(n => extractExplicitLinks(n, result))
-    }
-    if (node.content) {
-        extractExplicitLinks(node.content, result)
-    }
-}
+import { extractTextFromJson, extractExplicitLinks } from '../services/textUtils'
 
 self.onmessage = async (e: MessageEvent) => {
-    const { action, projectId } = e.data
+    const { action, novelId } = e.data
 
     if (action === 'INDEX_PROJECT') {
         try {
-            const scenes = await db.scenes.where({ projectId }).toArray()
-            const entries = await db.bibleEntries.where({ projectId }).toArray()
+            const scenes = await db.scenes.where({ novelId }).toArray()
+            const entries = await db.bibleEntries.where({ novelId }).toArray()
 
             // Map entries to searchable terms (name + aliases)
             const searchEntities: { id: string, terms: string[] }[] = []
@@ -40,7 +19,7 @@ self.onmessage = async (e: MessageEvent) => {
             }
 
             // Flush old occurrences natively
-            const oldOccurrences = await db.occurrences.where({ projectId }).primaryKeys()
+            const oldOccurrences = await db.occurrences.where('novelId').equals(novelId).primaryKeys()
             if (oldOccurrences.length > 0) {
                 await db.occurrences.bulkDelete(oldOccurrences as string[])
             }
@@ -61,15 +40,13 @@ self.onmessage = async (e: MessageEvent) => {
                 for (const link of explicitLinks) {
                     occurrencesToInsert.push({
                         id: crypto.randomUUID(),
-                        projectId,
+                        novelId,
                         entryId: link.id,
                         sceneId: scene.id,
-                        textPreview: `Explicit Reference: ${link.name}`,
                         keywordOrAlias: link.name,
                         isConfirmed: true,
                         isDismissed: false,
                         confidence: 1.0,
-                        createdAt: Date.now()
                     })
                     explicitCount++
                     seenExplicitIds.add(link.id)
@@ -88,20 +65,15 @@ self.onmessage = async (e: MessageEvent) => {
                         let match
 
                         while ((match = regex.exec(rawText)) !== null) {
-                            const snippetStart = Math.max(0, match.index - 40)
-                            const snippetEnd = Math.min(rawText.length, match.index + term.length + 40)
-
                             occurrencesToInsert.push({
                                 id: crypto.randomUUID(),
-                                projectId,
+                                novelId,
                                 entryId: entity.id,
                                 sceneId: scene.id,
-                                textPreview: rawText.substring(snippetStart, snippetEnd).trim(),
                                 keywordOrAlias: term,
                                 isConfirmed: false,
                                 isDismissed: false,
                                 confidence: 0.8,
-                                createdAt: Date.now()
                             })
                             heuristicCount++
                         }

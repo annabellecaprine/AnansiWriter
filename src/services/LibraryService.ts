@@ -141,7 +141,6 @@ export class LibraryService {
             })
         } catch (e: any) {
             console.error('Cascade Delete Failed', e)
-            alert(`Cascade Deletion Error: ${e.message || e}`)
             throw e
         }
     }

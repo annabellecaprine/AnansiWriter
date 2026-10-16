@@ -8,6 +8,7 @@ import { SearchModal } from '../SearchModal'
 import CommandPalette from '../CommandPalette/CommandPalette'
 import DialogModal from './DialogModal'
 import MasterChatOverlay from './MasterChatOverlay'
+import AIPromptInvocationHub from '../ai/AIPromptInvocationHub'
 
 export default function AppShell() {
     const [searchOpen, setSearchOpen] = useState(false)
@@ -36,6 +37,7 @@ export default function AppShell() {
             <CommandPalette />
             <DialogModal />
             <MasterChatOverlay />
+            <AIPromptInvocationHub />
         </div>
     )
 }

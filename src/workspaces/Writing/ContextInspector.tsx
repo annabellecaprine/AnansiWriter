@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { Link as LinkIcon, FileText, History, X, ArrowLeftRight, User, MapPin, Tag, Plus, Trash2, FolderOpen, BookOpen, Sparkles, ArrowRight } from 'lucide-react'
+import { useAIStore } from '../../store/aiStore'
+import { AIWritableFieldCapability } from '../../components/ai/AITypes'
+import { Link as LinkIcon, FileText, History, X, ArrowLeftRight, User, MapPin, Tag, Plus, Trash2, FolderOpen, BookOpen, Sparkles, ArrowRight, Wand2 } from 'lucide-react'
 import TipTapEditor from '../../components/editor/TipTapEditor'
 
 interface SceneInspectorProps {
@@ -31,9 +33,11 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
     const [status, setStatus] = useState<'Idea' | 'Planned' | 'Draft' | 'Revised' | 'Edited' | 'Final'>('Draft')
     const [povCharacterId, setPovCharacterId] = useState('')
     const [location, setLocation] = useState('')
+    const [narrativeSequence, setNarrativeSequence] = useState<number | ''>('')
     const [timelineStart, setTimelineStart] = useState<number | ''>('')
     const [timelineEnd, setTimelineEnd] = useState<number | ''>('')
     const [timelineLabel, setTimelineLabel] = useState('')
+    const summaryRef = useRef<HTMLTextAreaElement>(null)
     const [notes, setNotes] = useState<string[]>([])
     const [newNote, setNewNote] = useState('')
     const [characters, setCharacters] = useState<any[]>([])
@@ -63,6 +67,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
             setStatus((scene.status as any) || 'Draft')
             setPovCharacterId(scene.povCharacterId || '')
             setLocation(scene.location || '')
+            setNarrativeSequence(scene.narrativePosition?.sequence ?? '')
             setTimelineStart(scene.timelineStart ?? '')
             setTimelineEnd(scene.timelineEnd ?? '')
             setTimelineLabel(scene.timelineLabel || '')
@@ -133,6 +138,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
             status,
             povCharacterId,
             location,
+            narrativePosition: narrativeSequence === '' ? undefined : { sequence: Number(narrativeSequence), sceneId },
             timelineStart: timelineStart === '' ? undefined : timelineStart,
             timelineEnd: timelineEnd === '' ? undefined : timelineEnd,
             timelineLabel,
@@ -499,8 +505,43 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
 
                         {/* Synopsis */}
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Scene Synopsis</label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>Scene Synopsis</label>
+                                <button
+                                    className="icon-btn"
+                                    style={{ padding: '0.15rem', color: 'var(--color-accent)' }}
+                                    title="Invoke AI Assistant"
+                                    onClick={() => {
+                                        const el = summaryRef.current;
+                                        if (!el) return;
+
+                                        const start = el.selectionStart;
+                                        const end = el.selectionEnd;
+
+                                        const capability: AIWritableFieldCapability = {
+                                            kind: 'summary',
+                                            captureSelection: () => ({ id: `summary-${Date.now()}`, from: start, to: end, contextType: 'summary' }),
+                                            getSelectedText: (bm) => bm.from === bm.to ? null : el.value.substring(bm.from, bm.to),
+                                            applyResult: (bm, text) => {
+                                                el.focus();
+                                                el.setRangeText(text, bm.from, bm.to, 'end');
+                                                // Dispatch synthetic input event so React's setSummary tracks the mutation transparently while preserving native Undo
+                                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                                            },
+                                            onCancel: (bm) => {
+                                                el.focus();
+                                                el.setSelectionRange(bm.from, bm.to);
+                                            },
+                                            getFieldConstraints: () => ({ description: "This is a Scene Summary. Keep the result concise and approximately 200 words or fewer." })
+                                        };
+                                        useAIStore.getState().openHub(capability);
+                                    }}
+                                >
+                                    <Wand2 size={12} />
+                                </button>
+                            </div>
                             <textarea
+                                ref={summaryRef}
                                 className="input"
                                 rows={3}
                                 placeholder="Brief overview of scene objectives, conflict, and outcome..."
@@ -560,16 +601,37 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
 
                         <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.25rem 0' }} />
 
-                        {/* Chronology Bounds */}
+                        {/* Chronology & Narrative Ordering */}
                         <div>
                             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                                Chronology Bounds
-                                <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>Feature E</span>
+                                Chronology & Narrative Order
                             </label>
+
+                            <div style={{ marginBottom: '0.6rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-accent)', marginBottom: '0.1rem', fontWeight: 600 }}>
+                                    Narrative Sequence (Authoritative Context & Review Order)
+                                </label>
+                                <input
+                                    type="number"
+                                    className="input"
+                                    style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem' }}
+                                    placeholder="e.g. 10 (overrides manuscript order for flashbacks)"
+                                    value={narrativeSequence}
+                                    onChange={(e) => setNarrativeSequence(e.target.value === '' ? '' : Number(e.target.value))}
+                                    onBlur={handleSaveMetadata}
+                                />
+                                <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                                    {narrativeSequence !== '' 
+                                        ? `Active ordering: Sequence ${narrativeSequence}`
+                                        : (timelineStart !== '' 
+                                            ? `Fallback ordering: Timeline Start ${timelineStart}`
+                                            : `Fallback ordering: Manuscript sort order`)}
+                                </div>
+                            </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>Start (Numeric)</label>
+                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>Timeline Start (Epoch)</label>
                                     <input
                                         type="number"
                                         className="input"
@@ -581,7 +643,7 @@ export default function ContextInspector({ sceneId, editorContent, onClose, onRe
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>End (Optional)</label>
+                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>Timeline End (Epoch)</label>
                                     <input
                                         type="number"
                                         className="input"

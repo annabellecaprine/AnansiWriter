@@ -5,7 +5,7 @@ import { ExportService } from './ExportService';
  * Strips superficial HTML tags natively for clean markdown text layouts.
  * Specifically converts basic TipTap html back into plaintext equivalents.
  */
-function stripHtmlToMarkdown(htmlText: string): string {
+export function stripHtmlToMarkdown(htmlText: string): string {
     const doc = new DOMParser().parseFromString(htmlText, 'text/html');
     let md = '';
     doc.body.childNodes.forEach((node) => {
