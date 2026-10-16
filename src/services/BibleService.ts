@@ -5,7 +5,7 @@ import { isNarrativePositionInRange } from './ai/narrativeComparator'
 import { CodexConfigService } from './CodexConfigService'
 
 export const BUILT_IN_TEMPLATES: Record<string, string[]> = {
-    'Character': ['Full Name', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw'],
+    'Character': ['Full Name', 'Pronouns', 'Status', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw'],
     'Location': ['Name', 'Region', 'Climate', 'Population', 'Key Landmarks'],
     'Organization': ['Name', 'Leader', 'Purpose', 'Headquarters', 'Members'],
     'Lore': ['Concept', 'Origin', 'Rules', 'Limitations', 'Known Examples']

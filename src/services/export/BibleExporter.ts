@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { db } from '../../db/database';
 import type { BibleEntry, FieldValue, Relationship } from '../../db/schema';
 import { BibleService } from '../BibleService';
+import { CodexConfigService } from '../CodexConfigService';
 import { ExportService } from './ExportService';
 import { stripHtmlToMarkdown } from './MarkdownExporter';
 
@@ -45,6 +46,19 @@ export class BibleExporter {
 
         const zip = new JSZip();
         const indexLines: string[] = ['# Codex Index', ''];
+
+        // Export schema definitions for vault interoperability
+        const [categories, relationshipTypes] = await Promise.all([
+            CodexConfigService.getCategories(),
+            CodexConfigService.getRelationshipTypes()
+        ]);
+        const definitionsPayload = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            categories,
+            relationshipTypes
+        };
+        zip.file('codex-definitions.json', JSON.stringify(definitionsPayload, null, 2));
 
         for (const entry of entries) {
             // Query fields for this entry, excluding discarded fields

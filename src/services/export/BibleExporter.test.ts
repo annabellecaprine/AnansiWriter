@@ -254,4 +254,19 @@ describe('BibleExporter', () => {
         expect(md).toContain('    Paragraph one');
         expect(md).toContain('    Paragraph two');
     });
+
+    it('exports codex-definitions.json with categories and relationship types for vault interop', async () => {
+        const blob = await BibleExporter.exportBible(novelId);
+        const zip = await new JSZip().loadAsync(blob);
+        const defFile = zip.file('codex-definitions.json');
+        expect(defFile).not.toBeNull();
+
+        const content = await defFile!.async('string');
+        const parsed = JSON.parse(content);
+        expect(parsed.version).toBe(1);
+        expect(Array.isArray(parsed.categories)).toBe(true);
+        expect(Array.isArray(parsed.relationshipTypes)).toBe(true);
+        expect(parsed.categories.some((c: any) => c.name === 'Character')).toBe(true);
+        expect(parsed.relationshipTypes.some((r: any) => r.name === 'Enemy Of')).toBe(true);
+    });
 });

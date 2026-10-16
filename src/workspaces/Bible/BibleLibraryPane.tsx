@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Layers, Book, Download } from 'lucide-react'
+import { Plus, Search, Layers, Download, CheckSquare, Check, X, ArrowRightLeft } from 'lucide-react'
 import type { BibleEntry } from '../../db/schema'
 import { BibleExporter } from '../../services/export/BibleExporter'
 import { CodexConfigService, type CodexCategoryDefinition } from '../../services/CodexConfigService'
@@ -11,12 +11,14 @@ export function BibleLibraryPane({
     entries,
     activeEntryId,
     onSelectEntry,
-    onNewEntry
+    onNewEntry,
+    onRefreshLibrary
 }: {
     entries: BibleEntry[],
     activeEntryId: string | null,
     onSelectEntry: (id: string) => void,
-    onNewEntry: () => void
+    onNewEntry: () => void,
+    onRefreshLibrary?: () => void
 }) {
     const { activeNovelId } = useWorkspaceStore()
     const [searchQuery, setSearchQuery] = useState('')
@@ -24,8 +26,19 @@ export function BibleLibraryPane({
     const [isExporting, setIsExporting] = useState(false)
     const [categories, setCategories] = useState<CodexCategoryDefinition[]>([])
 
+    // Batch Selection Mode
+    const [isBatchMode, setIsBatchMode] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [targetBulkCategory, setTargetBulkCategory] = useState<string>('')
+    const [isMoving, setIsMoving] = useState(false)
+
     useEffect(() => {
-        CodexConfigService.getCategories().then(setCategories)
+        CodexConfigService.getCategories().then(cats => {
+            setCategories(cats)
+            if (cats.length > 0 && !targetBulkCategory) {
+                setTargetBulkCategory(cats[0].name)
+            }
+        })
     }, [entries])
 
     const categoryMap = useMemo(() => {
@@ -80,24 +93,64 @@ export function BibleLibraryPane({
         })
     }, [entries, searchQuery, selectedType])
 
+    const toggleSelect = (id: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation()
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
+
+    const handleBulkMove = async () => {
+        if (selectedIds.size === 0 || !targetBulkCategory) return
+        setIsMoving(true)
+        try {
+            const ids = Array.from(selectedIds)
+            await db.bibleEntries
+                .where('id')
+                .anyOf(ids)
+                .modify({ type: targetBulkCategory, updatedAt: Date.now() })
+
+            setSelectedIds(new Set())
+            setIsBatchMode(false)
+            onRefreshLibrary?.()
+        } finally {
+            setIsMoving(false)
+        }
+    }
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: 0, background: 'var(--color-surface)', zIndex: 10 }}>
+            <div style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.75rem', position: 'sticky', top: 0, background: 'var(--color-surface)', zIndex: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Codex Library</h2>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <button
+                            className={`btn ${isBatchMode ? 'primary' : 'outline'}`}
+                            onClick={() => {
+                                setIsBatchMode(!isBatchMode)
+                                setSelectedIds(new Set())
+                            }}
+                            title="Toggle Batch Re-categorization Mode"
+                            style={{ padding: '0.35rem 0.55rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                            <CheckSquare size={13} />
+                            {isBatchMode ? 'Done' : 'Batch'}
+                        </button>
                         <button
                             className="btn outline"
                             onClick={handleExport}
                             disabled={isExporting}
                             title="Export Codex as Markdown ZIP"
-                            style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                            style={{ padding: '0.35rem 0.55rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                            <Download size={14} />
-                            {isExporting ? 'Exporting...' : 'Export'}
+                            <Download size={13} />
+                            {isExporting ? '...' : 'Export'}
                         </button>
-                        <button className="btn primary" onClick={onNewEntry} style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
-                            <Plus size={16} style={{ marginRight: '0.2rem' }} /> New
+                        <button className="btn primary" onClick={onNewEntry} style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}>
+                            <Plus size={15} style={{ marginRight: '0.15rem' }} /> New
                         </button>
                     </div>
                 </div>
@@ -155,37 +208,116 @@ export function BibleLibraryPane({
                     </ul>
                 </div>
 
+                {/* Batch Action Bar */}
+                {isBatchMode && (
+                    <div style={{
+                        marginBottom: '1rem',
+                        padding: '0.75rem',
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-accent)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                            <strong style={{ color: 'var(--color-accent)' }}>{selectedIds.size} Selected</strong>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedIds(new Set(filteredEntries.map(e => e.id)))}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}
+                                >
+                                    Select All
+                                </button>
+                                <span style={{ opacity: 0.5 }}>|</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedIds(new Set())}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        {selectedIds.size > 0 && (
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.25rem' }}>
+                                <select
+                                    value={targetBulkCategory}
+                                    onChange={(e) => setTargetBulkCategory(e.target.value)}
+                                    style={{ flex: 1, padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)', fontSize: '0.8rem' }}
+                                >
+                                    {categories.map(c => (
+                                        <option key={c.id} value={c.name}>Move to {c.name}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    className="btn primary"
+                                    onClick={handleBulkMove}
+                                    disabled={isMoving}
+                                    style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                                >
+                                    {isMoving ? 'Moving...' : 'Apply'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <h3 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Entries ({filteredEntries.length})</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {filteredEntries.map(e => {
                         const catDef = categoryMap.get(e.type.toLowerCase())
                         const catColor = catDef?.color || 'var(--color-text-muted)'
+                        const isSelected = selectedIds.has(e.id)
                         return (
-                            <button
+                            <div
                                 key={e.id}
-                                onClick={() => onSelectEntry(e.id)}
+                                onClick={() => {
+                                    if (isBatchMode) {
+                                        toggleSelect(e.id)
+                                    } else {
+                                        onSelectEntry(e.id)
+                                    }
+                                }}
                                 style={{
                                     width: '100%',
                                     textAlign: 'left',
                                     padding: '0.5rem 0.75rem',
-                                    background: activeEntryId === e.id ? 'var(--color-accent-transparent, rgba(100, 150, 255, 0.1))' : 'transparent',
-                                    border: 'none',
-                                    borderLeft: activeEntryId === e.id ? `3px solid ${catDef?.color || 'var(--color-accent)'}` : '3px solid transparent',
+                                    background: isSelected
+                                        ? 'rgba(139, 92, 246, 0.15)'
+                                        : activeEntryId === e.id
+                                            ? 'var(--color-accent-transparent, rgba(100, 150, 255, 0.1))'
+                                            : 'transparent',
+                                    borderRadius: '4px',
+                                    border: isSelected ? '1px solid var(--color-accent)' : '1px solid transparent',
+                                    borderLeft: activeEntryId === e.id ? `3px solid ${catDef?.color || 'var(--color-accent)'}` : (isSelected ? '3px solid var(--color-accent)' : '3px solid transparent'),
                                     cursor: 'pointer',
                                     display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '0.25rem'
+                                    alignItems: 'center',
+                                    gap: '0.6rem'
                                 }}
                             >
-                                <span style={{ fontWeight: activeEntryId === e.id ? 600 : 500, color: activeEntryId === e.id ? 'var(--color-accent)' : 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    {e.name}
-                                    {!e.novelId && e.seriesId && <span title="Series-level Entry"><Layers size={14} color="var(--color-warning)" /></span>}
-                                </span>
-                                <span style={{ fontSize: '0.8rem', color: catColor, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                    <CodexIcon name={catDef?.icon} color={catColor} size={12} />
-                                    {e.type}
-                                </span>
-                            </button>
+                                {isBatchMode && (
+                                    <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(ev) => toggleSelect(e.id, ev as any)}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                )}
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span style={{ fontWeight: activeEntryId === e.id ? 600 : 500, color: activeEntryId === e.id ? 'var(--color-accent)' : 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        {e.name}
+                                        {!e.novelId && e.seriesId && <span title="Series-level Entry"><Layers size={14} color="var(--color-warning)" /></span>}
+                                    </span>
+                                    <span style={{ fontSize: '0.8rem', color: catColor, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <CodexIcon name={catDef?.icon} color={catColor} size={12} />
+                                        {e.type}
+                                    </span>
+                                </div>
+                            </div>
                         )
                     })}
                 </div>

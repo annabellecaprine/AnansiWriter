@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react'
 import {
     CodexConfigService,
     type CodexCategoryDefinition,
-    type RelationshipTypeDefinition
+    type RelationshipTypeDefinition,
+    RECOMMENDED_CATEGORY_PRESETS,
+    type CodexCategoryPreset
 } from '../../../services/CodexConfigService'
 import { CodexIcon, AVAILABLE_CODEX_ICONS, CODEX_COLOR_PALETTE } from '../../../components/shared/CodexIcon'
 import { Dialog } from '../../../components/shared/Dialog'
+import { useWorkspaceStore } from '../../../store/workspaceStore'
 import {
     Plus,
     Edit2,
@@ -17,14 +20,18 @@ import {
     X,
     Check,
     Layers,
-    AlertCircle
+    AlertCircle,
+    RefreshCw,
+    Sparkles
 } from 'lucide-react'
 
 export function CodexSchemaTab() {
+    const { activeNovelId } = useWorkspaceStore()
     const [subTab, setSubTab] = useState<'categories' | 'relationships'>('categories')
     const [categories, setCategories] = useState<CodexCategoryDefinition[]>([])
     const [relTypes, setRelTypes] = useState<RelationshipTypeDefinition[]>([])
     const [statusMessage, setStatusMessage] = useState<string | null>(null)
+    const [isBackfilling, setIsBackfilling] = useState(false)
 
     // Category Modal State
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -61,6 +68,38 @@ export function CodexSchemaTab() {
     const flashStatus = (msg: string) => {
         setStatusMessage(msg)
         setTimeout(() => setStatusMessage(null), 4000)
+    }
+
+    const handleBackfillCategory = async (categoryName: string) => {
+        if (!activeNovelId) {
+            flashStatus('No active novel selected to backfill entries.')
+            return
+        }
+        setIsBackfilling(true)
+        try {
+            const res = await CodexConfigService.backfillStarterFields(activeNovelId, categoryName)
+            flashStatus(`Backfill complete: updated ${res.entriesUpdated} "${categoryName}" entries, added ${res.fieldsAdded} missing starter fields.`)
+        } catch (err: any) {
+            flashStatus(`Backfill failed: ${err.message}`)
+        } finally {
+            setIsBackfilling(false)
+        }
+    }
+
+    const handleBackfillAll = async () => {
+        if (!activeNovelId) {
+            flashStatus('No active novel selected to backfill entries.')
+            return
+        }
+        setIsBackfilling(true)
+        try {
+            const res = await CodexConfigService.backfillStarterFields(activeNovelId)
+            flashStatus(`Backfill complete: updated ${res.entriesUpdated} entries, added ${res.fieldsAdded} missing starter fields across all categories.`)
+        } catch (err: any) {
+            flashStatus(`Backfill failed: ${err.message}`)
+        } finally {
+            setIsBackfilling(false)
+        }
     }
 
     // ==========================================
@@ -241,9 +280,21 @@ export function CodexSchemaTab() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Master Category List</h3>
-                        <button className="btn primary" onClick={openAddCategory} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <Plus size={16} /> New Category
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <button
+                                className="btn outline"
+                                onClick={handleBackfillAll}
+                                disabled={isBackfilling}
+                                title="Safely backfill missing starter fields across all entries for the active novel"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                            >
+                                <RefreshCw size={14} className={isBackfilling ? 'animate-spin' : ''} />
+                                {isBackfilling ? 'Backfilling...' : 'Backfill All Entries'}
+                            </button>
+                            <button className="btn primary" onClick={openAddCategory} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Plus size={16} /> New Category
+                            </button>
+                        </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '1rem' }}>
@@ -284,7 +335,7 @@ export function CodexSchemaTab() {
                                 </div>
 
                                 {/* Default template fields */}
-                                <div>
+                                <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '0.35rem' }}>
                                         Starter Fields ({cat.defaultFields?.length || 0}):
                                     </div>
@@ -310,6 +361,23 @@ export function CodexSchemaTab() {
                                         <span style={{ fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--color-text-muted)' }}>No default fields configured</span>
                                     )}
                                 </div>
+
+                                {/* Category Backfill Action */}
+                                {cat.defaultFields && cat.defaultFields.length > 0 && (
+                                    <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.6rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <button
+                                            type="button"
+                                            className="btn outline"
+                                            onClick={() => handleBackfillCategory(cat.name)}
+                                            disabled={isBackfilling}
+                                            title={`Add missing starter fields to existing ${cat.name} entries`}
+                                            style={{ fontSize: '0.75rem', padding: '0.2rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                                        >
+                                            <RefreshCw size={11} className={isBackfilling ? 'animate-spin' : ''} />
+                                            Backfill to Entries
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -395,6 +463,45 @@ export function CodexSchemaTab() {
                     width="550px"
                 >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Recommended Presets */}
+                        {!editingCategory && (
+                            <div style={{ padding: '0.6rem 0.75rem', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '4px' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+                                    Quick Presets (Bradley-approved templates):
+                                </span>
+                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    {RECOMMENDED_CATEGORY_PRESETS.map(preset => (
+                                        <button
+                                            key={preset.name}
+                                            type="button"
+                                            onClick={() => {
+                                                setCatName(preset.name)
+                                                setCatIcon(preset.icon)
+                                                setCatColor(preset.color)
+                                                setCatFields([...preset.defaultFields])
+                                            }}
+                                            style={{
+                                                padding: '0.25rem 0.55rem',
+                                                borderRadius: '4px',
+                                                border: catName === preset.name ? `1px solid ${preset.color}` : '1px solid var(--color-border)',
+                                                background: catName === preset.name ? `${preset.color}20` : 'var(--color-surface)',
+                                                color: catName === preset.name ? preset.color : 'var(--color-text)',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.3rem'
+                                            }}
+                                            title={preset.description}
+                                        >
+                                            <CodexIcon name={preset.icon} color={preset.color} size={12} />
+                                            {preset.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Name */}
                         <div>
                             <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem', fontSize: '0.9rem' }}>Category Name *</label>
@@ -403,7 +510,7 @@ export function CodexSchemaTab() {
                                 className="input-field"
                                 value={catName}
                                 onChange={e => setCatName(e.target.value)}
-                                placeholder="E.g., Item, Spell, Faction, Planet..."
+                                placeholder="E.g., Species, Plot Thread, Magic System..."
                                 style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
                             />
                         </div>

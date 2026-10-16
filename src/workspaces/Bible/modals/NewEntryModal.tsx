@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { Dialog } from '../../../components/shared/Dialog'
 import { BibleService } from '../../../services/BibleService'
-import { CodexConfigService, type CodexCategoryDefinition } from '../../../services/CodexConfigService'
+import {
+    CodexConfigService,
+    type CodexCategoryDefinition,
+    RECOMMENDED_CATEGORY_PRESETS,
+    type CodexCategoryPreset
+} from '../../../services/CodexConfigService'
 import { CodexIcon, AVAILABLE_CODEX_ICONS, CODEX_COLOR_PALETTE } from '../../../components/shared/CodexIcon'
 import { useWorkspaceStore } from '../../../store/workspaceStore'
 import { Plus } from 'lucide-react'
@@ -24,6 +29,7 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
     const [customCatName, setCustomCatName] = useState('')
     const [customCatIcon, setCustomCatIcon] = useState('Tag')
     const [customCatColor, setCustomCatColor] = useState('#ec4899')
+    const [customCatFields, setCustomCatFields] = useState<string[]>([])
     const [saveToSettings, setSaveToSettings] = useState(true)
 
     const loadCategories = async () => {
@@ -71,7 +77,7 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
                         name: trimmedCat,
                         icon: customCatIcon,
                         color: customCatColor,
-                        defaultFields: []
+                        defaultFields: customCatFields
                     })
                 }
             }
@@ -90,6 +96,7 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
         setSelectedType(categories[0]?.name || 'Character')
         setIsCreatingCategory(false)
         setCustomCatName('')
+        setCustomCatFields([])
         setScope('project')
     }
 
@@ -140,16 +147,59 @@ export function NewEntryModal({ isOpen, onClose, onEntryCreated }: { isOpen: boo
                             </button>
                         </div>
 
+                        {/* Quick Presets */}
+                        <div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '0.3rem' }}>
+                                Recommended Templates:
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                {RECOMMENDED_CATEGORY_PRESETS.map(preset => (
+                                    <button
+                                        key={preset.name}
+                                        type="button"
+                                        onClick={() => {
+                                            setCustomCatName(preset.name)
+                                            setCustomCatIcon(preset.icon)
+                                            setCustomCatColor(preset.color)
+                                            setCustomCatFields([...preset.defaultFields])
+                                        }}
+                                        style={{
+                                            padding: '0.2rem 0.5rem',
+                                            borderRadius: '4px',
+                                            border: customCatName === preset.name ? `1px solid ${preset.color}` : '1px solid var(--color-border)',
+                                            background: customCatName === preset.name ? `${preset.color}20` : 'var(--color-bg)',
+                                            color: customCatName === preset.name ? preset.color : 'var(--color-text)',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.3rem'
+                                        }}
+                                        title={preset.description}
+                                    >
+                                        <CodexIcon name={preset.icon} color={preset.color} size={12} />
+                                        {preset.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div>
                             <input
                                 autoFocus
                                 type="text"
-                                placeholder="Category Name (e.g. Artifact, Spell, Faction)..."
+                                placeholder="Category Name (e.g. Species, Plot Thread, Magic System)..."
                                 value={customCatName}
                                 onChange={e => setCustomCatName(e.target.value)}
                                 style={{ width: '100%', padding: '0.45rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
                             />
                         </div>
+
+                        {customCatFields.length > 0 && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                Starter fields: {customCatFields.join(', ')}
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

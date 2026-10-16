@@ -24,7 +24,7 @@ export const DEFAULT_CODEX_CATEGORIES: CodexCategoryDefinition[] = [
         name: 'Character',
         icon: 'User',
         color: '#8b5cf6',
-        defaultFields: ['Full Name', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw'],
+        defaultFields: ['Full Name', 'Pronouns', 'Status', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw'],
         isBuiltIn: true
     },
     {
@@ -93,6 +93,38 @@ export const DEFAULT_CODEX_CATEGORIES: CodexCategoryDefinition[] = [
     }
 ]
 
+export interface CodexCategoryPreset {
+    name: string;
+    icon: string;
+    color: string;
+    defaultFields: string[];
+    description: string;
+}
+
+export const RECOMMENDED_CATEGORY_PRESETS: CodexCategoryPreset[] = [
+    {
+        name: 'Species',
+        icon: 'Sparkles',
+        color: '#0d9488',
+        defaultFields: ['Description', 'Distinguishing Traits', 'Weaknesses', 'Population / Numbers', 'Notable Members'],
+        description: 'Taxonomic entries (traits, weaknesses, populations), not individuals. Answers: "X is a Y — what are Ys?"'
+    },
+    {
+        name: 'Plot Thread',
+        icon: 'Scroll',
+        color: '#d97706',
+        defaultFields: ['Status', 'Participants', 'Stakes', 'Key Beats', 'Payoff'],
+        description: 'Subplot / arc entries. Answers: "what\'s the state of this arc?"'
+    },
+    {
+        name: 'Magic System',
+        icon: 'Zap',
+        color: '#0284c7',
+        defaultFields: ['Rules', 'Costs / Limitations', 'Who Can Use It', 'Dangers'],
+        description: 'System rules (not discrete powers). Answers: "how does magic work in this world?"'
+    }
+]
+
 export const DEFAULT_RELATIONSHIP_TYPES: RelationshipTypeDefinition[] = [
     {
         id: 'rel-friend',
@@ -116,10 +148,32 @@ export const DEFAULT_RELATIONSHIP_TYPES: RelationshipTypeDefinition[] = [
         isBuiltIn: true
     },
     {
+        id: 'rel-enemy',
+        name: 'Enemy Of',
+        defaultDirection: 'bidirectional',
+        color: '#dc2626',
+        isBuiltIn: true
+    },
+    {
+        id: 'rel-mentor',
+        name: 'Mentor Of',
+        reverseName: 'Mentored By',
+        defaultDirection: 'outbound',
+        color: '#8b5cf6',
+        isBuiltIn: true
+    },
+    {
+        id: 'rel-romantic',
+        name: 'Romantic Partner',
+        defaultDirection: 'bidirectional',
+        color: '#f43f5e',
+        isBuiltIn: true
+    },
+    {
         id: 'rel-sibling',
         name: 'Sibling Of',
         defaultDirection: 'bidirectional',
-        color: '#8b5cf6',
+        color: '#a855f7',
         isBuiltIn: true
     },
     {
@@ -127,7 +181,7 @@ export const DEFAULT_RELATIONSHIP_TYPES: RelationshipTypeDefinition[] = [
         name: 'Parent Of',
         reverseName: 'Child Of',
         defaultDirection: 'outbound',
-        color: '#a855f7',
+        color: '#c084fc',
         isBuiltIn: true
     },
     {
@@ -204,11 +258,32 @@ export class CodexConfigService {
             return DEFAULT_CODEX_CATEGORIES
         }
         try {
-            const parsed = JSON.parse(row.value)
+            const parsed: CodexCategoryDefinition[] = JSON.parse(row.value)
             if (!Array.isArray(parsed) || parsed.length === 0) {
                 await this.saveCategories(DEFAULT_CODEX_CATEGORIES)
                 return DEFAULT_CODEX_CATEGORIES
             }
+
+            // Bradley-approved 2026-10-16 amendment: Ensure built-in Character includes 'Pronouns' and 'Status'
+            let categoriesUpdated = false
+            for (const cat of parsed) {
+                if ((cat.id === 'cat-character' || cat.name === 'Character') && Array.isArray(cat.defaultFields)) {
+                    if (!cat.defaultFields.includes('Pronouns')) {
+                        const fnIdx = cat.defaultFields.indexOf('Full Name')
+                        cat.defaultFields.splice(fnIdx >= 0 ? fnIdx + 1 : 0, 0, 'Pronouns')
+                        categoriesUpdated = true
+                    }
+                    if (!cat.defaultFields.includes('Status')) {
+                        const pIdx = cat.defaultFields.indexOf('Pronouns')
+                        cat.defaultFields.splice(pIdx >= 0 ? pIdx + 1 : 1, 0, 'Status')
+                        categoriesUpdated = true
+                    }
+                }
+            }
+            if (categoriesUpdated) {
+                await this.saveCategories(parsed)
+            }
+
             return parsed
         } catch {
             await this.saveCategories(DEFAULT_CODEX_CATEGORIES)
@@ -293,11 +368,25 @@ export class CodexConfigService {
             return DEFAULT_RELATIONSHIP_TYPES
         }
         try {
-            const parsed = JSON.parse(row.value)
+            const parsed: RelationshipTypeDefinition[] = JSON.parse(row.value)
             if (!Array.isArray(parsed) || parsed.length === 0) {
                 await this.saveRelationshipTypes(DEFAULT_RELATIONSHIP_TYPES)
                 return DEFAULT_RELATIONSHIP_TYPES
             }
+
+            // Bradley-approved 2026-10-16 amendment: Ensure newly introduced built-in types exist
+            let typesUpdated = false
+            for (const defType of DEFAULT_RELATIONSHIP_TYPES) {
+                const exists = parsed.some(t => t.id === defType.id || t.name.toLowerCase() === defType.name.toLowerCase())
+                if (!exists && defType.isBuiltIn) {
+                    parsed.push(defType)
+                    typesUpdated = true
+                }
+            }
+            if (typesUpdated) {
+                await this.saveRelationshipTypes(parsed)
+            }
+
             return parsed
         } catch {
             await this.saveRelationshipTypes(DEFAULT_RELATIONSHIP_TYPES)
@@ -369,5 +458,117 @@ export class CodexConfigService {
     static async getRelationshipTypeByName(name: string): Promise<RelationshipTypeDefinition | undefined> {
         const types = await this.getRelationshipTypes()
         return types.find(t => t.name.toLowerCase() === name.toLowerCase())
+    }
+
+    // ==========================================
+    // Field Maintenance & Schema Vocabulary
+    // ==========================================
+
+    /**
+     * Safely backfills missing starter fields for entries without overwriting existing data.
+     * Can target all entries in a novel, or entries of a specific category.
+     */
+    static async backfillStarterFields(novelId: string, categoryName?: string): Promise<{ entriesUpdated: number; fieldsAdded: number }> {
+        const novel = await db.novels.get(novelId)
+        const seriesId = novel?.seriesId
+
+        const novelEntries = await db.bibleEntries.where('novelId').equals(novelId).toArray()
+        let allEntries = [...novelEntries]
+        if (seriesId) {
+            const seriesEntries = await db.bibleEntries.where('seriesId').equals(seriesId).toArray()
+            allEntries = [...allEntries, ...seriesEntries]
+        }
+        const uniqueEntries = Array.from(new Map(allEntries.map(e => [e.id, e])).values()).filter(e => !e.isTrashed)
+        const targetEntries = categoryName
+            ? uniqueEntries.filter(e => e.type.toLowerCase() === categoryName.toLowerCase())
+            : uniqueEntries
+
+        const categories = await this.getCategories()
+        const catMap = new Map(categories.map(c => [c.name.toLowerCase(), c]))
+
+        let entriesUpdated = 0
+        let fieldsAdded = 0
+
+        for (const entry of targetEntries) {
+            const cat = catMap.get(entry.type.toLowerCase())
+            if (!cat || !cat.defaultFields || cat.defaultFields.length === 0) continue
+
+            const existingFields = await db.fieldValues.where('entryId').equals(entry.id).toArray()
+            const existingKeys = new Set(existingFields.map(f => f.fieldKey.toLowerCase()))
+
+            const missingKeys = cat.defaultFields.filter(df => !existingKeys.has(df.toLowerCase()))
+            if (missingKeys.length > 0) {
+                for (const key of missingKeys) {
+                    const now = Date.now()
+                    await db.fieldValues.add({
+                        id: `fv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                        novelId: entry.novelId || novelId,
+                        seriesId: entry.seriesId,
+                        entryId: entry.id,
+                        fieldKey: key,
+                        value: '',
+                        state: 'Canon',
+                        validFrom: null,
+                        validUntil: null,
+                        provenance: [],
+                        createdAt: now,
+                        updatedAt: now
+                    })
+                    fieldsAdded++
+                }
+                entriesUpdated++
+            }
+        }
+
+        return { entriesUpdated, fieldsAdded }
+    }
+
+    /**
+     * Gathers the consolidated vocabulary of known field keys from built-in categories,
+     * custom categories, and existing active entries.
+     */
+    static async getKnownFieldKeys(novelId?: string): Promise<string[]> {
+        const defaultSet = new Set<string>([
+            'Full Name', 'Pronouns', 'Status', 'Age', 'Eye Color', 'Hair Color', 'Occupation', 'Motivation', 'Flaw',
+            'Description', 'Distinguishing Traits', 'Weaknesses', 'Population / Numbers', 'Notable Members',
+            'Rules', 'Costs / Limitations', 'Who Can Use It', 'Dangers',
+            'Participants', 'Stakes', 'Key Beats', 'Payoff',
+            'Name', 'Region', 'Climate', 'Population', 'Key Landmarks',
+            'Leader', 'Purpose', 'Headquarters', 'Members',
+            'Concept', 'Origin', 'Limitations', 'Known Examples',
+            'Item Type', 'Weight', 'Special Properties', 'Bearer',
+            'Species', 'Habitat', 'Diet', 'Temperament', 'Abilities',
+            'People', 'Language', 'Traditions', 'Beliefs', 'Social Structure',
+            'Date / Era', 'Location', 'Key Participants', 'Outcome', 'Significance',
+            'Source / Mechanism', 'Applications', 'Dangers / Limitations'
+        ])
+
+        try {
+            const categories = await this.getCategories()
+            for (const cat of categories) {
+                for (const f of cat.defaultFields || []) {
+                    if (f && f.trim()) defaultSet.add(f.trim())
+                }
+            }
+        } catch {
+            // fallback to preset
+        }
+
+        try {
+            let query = db.fieldValues.toCollection()
+            if (novelId) {
+                query = db.fieldValues.where('novelId').equals(novelId)
+            }
+            const storedFields = await query.toArray()
+            for (const sf of storedFields) {
+                if (sf.fieldKey && sf.fieldKey.trim()) {
+                    defaultSet.add(sf.fieldKey.trim())
+                }
+            }
+        } catch {
+            // continue
+        }
+
+        return Array.from(defaultSet).sort((a, b) => a.localeCompare(b))
     }
 }

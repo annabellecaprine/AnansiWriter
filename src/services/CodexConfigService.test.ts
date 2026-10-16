@@ -130,4 +130,81 @@ describe('CodexConfigService', () => {
         const all = await CodexConfigService.getRelationshipTypes()
         expect(all.some(r => r.id === newRel.id)).toBe(false)
     })
+
+    it('includes Pronouns and Status in Character defaults and Mentor Of, Enemy Of, Romantic Partner in relationship types', async () => {
+        const categories = await CodexConfigService.getCategories()
+        const charCat = categories.find(c => c.name === 'Character')
+        expect(charCat).toBeDefined()
+        expect(charCat?.defaultFields).toContain('Pronouns')
+        expect(charCat?.defaultFields).toContain('Status')
+
+        const relTypes = await CodexConfigService.getRelationshipTypes()
+        expect(relTypes.some(r => r.name === 'Mentor Of' && r.reverseName === 'Mentored By')).toBe(true)
+        expect(relTypes.some(r => r.name === 'Enemy Of' && r.defaultDirection === 'bidirectional')).toBe(true)
+        expect(relTypes.some(r => r.name === 'Romantic Partner' && r.defaultDirection === 'bidirectional')).toBe(true)
+    })
+
+    it('backfills missing starter fields without overwriting existing values', async () => {
+        const novelId = 'novel-test-backfill'
+        await db.novels.add({
+            id: novelId,
+            title: 'Test Backfill Novel',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        })
+
+        // Add character entry with only 'Full Name' field
+        const entryId = 'char-entry-1'
+        await db.bibleEntries.add({
+            id: entryId,
+            novelId,
+            name: 'Sarah Connor',
+            type: 'Character',
+            tags: [],
+            aliases: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        })
+
+        await db.fieldValues.add({
+            id: 'fv-existing',
+            novelId,
+            entryId,
+            fieldKey: 'Full Name',
+            value: 'Sarah Jeanette Connor',
+            state: 'Canon',
+            validFrom: null,
+            validUntil: null,
+            provenance: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        })
+
+        // Run backfill for Character category
+        const result = await CodexConfigService.backfillStarterFields(novelId, 'Character')
+        expect(result.entriesUpdated).toBe(1)
+        expect(result.fieldsAdded).toBeGreaterThanOrEqual(8) // Pronouns, Status, Age, Eye Color, etc.
+
+        // Verify existing value was NOT overwritten
+        const fnField = await db.fieldValues.where({ entryId, fieldKey: 'Full Name' }).first()
+        expect(fnField?.value).toBe('Sarah Jeanette Connor')
+
+        // Verify Pronouns was added with blank value
+        const pronounField = await db.fieldValues.where({ entryId, fieldKey: 'Pronouns' }).first()
+        expect(pronounField).toBeDefined()
+        expect(pronounField?.value).toBe('')
+
+        // Running backfill again adds 0 fields
+        const rerun = await CodexConfigService.backfillStarterFields(novelId, 'Character')
+        expect(rerun.entriesUpdated).toBe(0)
+        expect(rerun.fieldsAdded).toBe(0)
+    })
+
+    it('returns consolidated known field keys', async () => {
+        const keys = await CodexConfigService.getKnownFieldKeys()
+        expect(keys).toContain('Pronouns')
+        expect(keys).toContain('Status')
+        expect(keys).toContain('Distinguishing Traits')
+        expect(keys).toContain('Rules')
+    })
 })

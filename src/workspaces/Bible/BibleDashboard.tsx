@@ -70,6 +70,7 @@ export default function BibleDashboard() {
                     activeEntryId={activeEntryId}
                     onSelectEntry={setActiveEntryId}
                     onNewEntry={() => setIsNewEntryOpen(true)}
+                    onRefreshLibrary={loadEntries}
                 />
             </div>
 
