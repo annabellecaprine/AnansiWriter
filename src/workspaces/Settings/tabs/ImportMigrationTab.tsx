@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileArchive, CheckCircle2, AlertTriangle, Flame, BookText, Database, Sparkles, Layers } from 'lucide-react';
+import { Upload, FileArchive, CheckCircle2, AlertTriangle, Flame, BookText, Database, Sparkles, Layers, BookOpen } from 'lucide-react';
 import { NovelCrafterParser, ImportPackage } from '../../../services/import/NovelCrafterParser';
+import { CodexImportService } from '../../../services/CodexImportService';
 import { db } from '../../../db/database';
 import { useWorkspaceStore } from '../../../store/workspaceStore';
 import { confirmAction, confirmAlert } from '../../../store/dialogStore';
@@ -33,7 +34,18 @@ export function ImportMigrationTab() {
         setParsedPkg(null);
 
         try {
+            // Check if this is an AnansiWriter Codex export archive
+            const isCodex = await CodexImportService.isCodexArchive(selectedFile);
+            if (isCodex) {
+                setIsParsing(false);
+                setIsUniversalModalOpen(true);
+                return;
+            }
+
             const pkg = await NovelCrafterParser.parseZip(selectedFile);
+            if (pkg.acts.length === 0 && pkg.chapters.length === 0 && pkg.scenes.length === 0 && pkg.codexEntries.length === 0) {
+                throw new Error('No manuscript scenes or codex entries found in this NovelCrafter ZIP. If this is an AnansiWriter archive, please use the Universal Importer or Codex Archive button.');
+            }
             setParsedPkg(pkg);
         } catch (err: any) {
             setErrorMsg(`Failed to parse ZIP: ${err.message}`);
@@ -215,6 +227,25 @@ export function ImportMigrationTab() {
                             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                         >
                             <Upload size={16} /> Import Project Archive...
+                        </button>
+                    </div>
+                </div>
+
+                {/* AnansiWriter Codex Archive Card */}
+                <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-accent)' }}>
+                        <BookOpen size={20} /> AnansiWriter Codex Archive (_codex.zip)
+                    </h3>
+                    <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--color-text-muted)', flex: 1 }}>
+                        Import an exported Codex backup archive containing markdown entry vaults, YAML frontmatter, custom categories, attribute values, and cross-reference relationship networks into any novel or project.
+                    </p>
+                    <div>
+                        <button
+                            className="btn primary"
+                            onClick={() => setIsUniversalModalOpen(true)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        >
+                            <Upload size={16} /> Import Codex Archive...
                         </button>
                     </div>
                 </div>

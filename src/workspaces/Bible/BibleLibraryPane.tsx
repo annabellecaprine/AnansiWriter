@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Layers, Download, CheckSquare, Check, X, ArrowRightLeft } from 'lucide-react'
+import { Plus, Search, Layers, Download, Upload, CheckSquare, Check, X, ArrowRightLeft } from 'lucide-react'
 import type { BibleEntry } from '../../db/schema'
 import { BibleExporter } from '../../services/export/BibleExporter'
 import { CodexConfigService, type CodexCategoryDefinition, normalizeCategoryName } from '../../services/CodexConfigService'
 import { CodexIcon } from '../../components/shared/CodexIcon'
+import { ImportProjectModal } from '../../components/shared/ImportProjectModal'
 import { db } from '../../db/database'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 
@@ -24,6 +25,7 @@ export function BibleLibraryPane({
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedType, setSelectedType] = useState<string | null>(null)
     const [isExporting, setIsExporting] = useState(false)
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false)
     const [categories, setCategories] = useState<CodexCategoryDefinition[]>([])
 
     // Batch Selection Mode
@@ -150,6 +152,15 @@ export function BibleLibraryPane({
                         >
                             <Download size={13} />
                             {isExporting ? '...' : 'Export'}
+                        </button>
+                        <button
+                            className="btn outline"
+                            onClick={() => setIsImportModalOpen(true)}
+                            title="Import Codex Backup (.zip)"
+                            style={{ padding: '0.35rem 0.55rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                            <Upload size={13} />
+                            Import
                         </button>
                         <button className="btn primary" onClick={onNewEntry} style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}>
                             <Plus size={15} style={{ marginRight: '0.15rem' }} /> New
@@ -325,6 +336,15 @@ export function BibleLibraryPane({
                     })}
                 </div>
             </div>
+
+            <ImportProjectModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                targetNovelId={activeNovelId || undefined}
+                onProjectImported={async () => {
+                    onRefreshLibrary?.()
+                }}
+            />
         </div>
     )
 }

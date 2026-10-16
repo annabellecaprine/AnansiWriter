@@ -1,23 +1,28 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Dialog } from './Dialog'
 import { Upload, FileArchive, Database, AlertTriangle, CheckCircle2, Loader2, Key, Layers, BookOpen } from 'lucide-react'
 import { ImportService, type ProjectArchiveMeta } from '../../services/ImportService'
 import { BackupService } from '../../services/BackupService'
 import { NovelCrafterParser, type ImportPackage } from '../../services/import/NovelCrafterParser'
+import { CodexImportService, type CodexImportPackage } from '../../services/CodexImportService'
+import { LibraryService } from '../../services/LibraryService'
 import { CryptoService } from '../../services/CryptoService'
 import { db } from '../../db/database'
 import { confirmAction, confirmAlert } from '../../store/dialogStore'
+import { useWorkspaceStore } from '../../store/workspaceStore'
 
 interface ImportProjectModalProps {
     isOpen: boolean;
     onClose: () => void;
     onProjectImported?: (novelId: string) => void;
     onSystemRestored?: () => void;
+    targetNovelId?: string;
 }
 
-type DetectedFileType = 'anansi-project' | 'anansi-system-backup' | 'novelcrafter' | null;
+type DetectedFileType = 'anansi-project' | 'anansi-system-backup' | 'anansi-codex' | 'novelcrafter' | null;
 
-export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSystemRestored }: ImportProjectModalProps) {
+export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSystemRestored, targetNovelId }: ImportProjectModalProps) {
+    const { activeNovelId } = useWorkspaceStore()
     const [file, setFile] = useState<File | null>(null)
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [isExecuting, setIsExecuting] = useState(false)
@@ -28,6 +33,7 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
     const [detectedType, setDetectedType] = useState<DetectedFileType>(null)
     const [anansiMeta, setAnansiMeta] = useState<ProjectArchiveMeta | null>(null)
     const [dexieMeta, setDexieMeta] = useState<any>(null)
+    const [codexPackage, setCodexPackage] = useState<CodexImportPackage | null>(null)
     const [ncPackage, setNcPackage] = useState<ImportPackage | null>(null)
 
     // Options
@@ -35,7 +41,23 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
     const [password, setPassword] = useState('')
     const [isEncrypted, setIsEncrypted] = useState(false)
 
+    // Codex Import Options
+    const [novelsList, setNovelsList] = useState<Array<{ id: string; title: string }>>([])
+    const [selectedTargetNovelId, setSelectedTargetNovelId] = useState<string>('')
+    const [overwriteCodexExisting, setOverwriteCodexExisting] = useState(false)
+
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (isOpen) {
+            db.novels.toArray().then(novels => {
+                const list = novels.map(n => ({ id: n.id, title: n.title || 'Untitled Novel' }))
+                setNovelsList(list)
+                const initialTarget = targetNovelId || activeNovelId || (list.length > 0 ? list[0].id : '__new__')
+                setSelectedTargetNovelId(initialTarget)
+            })
+        }
+    }, [isOpen, targetNovelId, activeNovelId])
 
     const resetState = () => {
         setFile(null)
@@ -46,10 +68,12 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
         setDetectedType(null)
         setAnansiMeta(null)
         setDexieMeta(null)
+        setCodexPackage(null)
         setNcPackage(null)
         setImportAsCopy(true)
         setPassword('')
         setIsEncrypted(false)
+        setOverwriteCodexExisting(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
@@ -93,19 +117,39 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
                     setIsAnalyzing(false)
                     return
                 } catch {
-                    // Fall through to test NovelCrafter
+                    // Fall through
+                }
+
+                // Check if AnansiWriter Codex archive
+                try {
+                    const isCodex = await CodexImportService.isCodexArchive(selectedFile)
+                    if (isCodex) {
+                        const parsedCodex = await CodexImportService.parseCodexArchive(selectedFile)
+                        if (parsedCodex.entries.length > 0 || parsedCodex.categories?.length || parsedCodex.relationshipTypes?.length) {
+                            setCodexPackage(parsedCodex)
+                            setDetectedType('anansi-codex')
+                            setIsAnalyzing(false)
+                            return
+                        }
+                    }
+                } catch {
+                    // Fall through
                 }
 
                 // Test NovelCrafter
                 try {
                     const nc = await NovelCrafterParser.parseZip(selectedFile)
-                    setNcPackage(nc)
-                    setDetectedType('novelcrafter')
-                    setIsAnalyzing(false)
-                    return
+                    if (nc.acts.length > 0 || nc.chapters.length > 0 || nc.scenes.length > 0 || nc.codexEntries.length > 0) {
+                        setNcPackage(nc)
+                        setDetectedType('novelcrafter')
+                        setIsAnalyzing(false)
+                        return
+                    }
                 } catch {
-                    throw new Error('Unable to recognize archive contents. File is neither an AnansiWriter project archive nor a NovelCrafter export.')
+                    // Fall through
                 }
+
+                throw new Error('Unable to recognize archive contents. File is neither an AnansiWriter project archive, a Codex export archive, nor a NovelCrafter export.')
             }
 
             throw new Error('Unsupported file extension. Please select a .zip, .storyproject, or .json file.')
@@ -292,11 +336,48 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
         }
     }
 
+    const handleImportCodex = async () => {
+        if (!file || !codexPackage) return
+        setIsExecuting(true)
+        setProgressStatus('Importing codex entries, fields, and relationships...')
+        setErrorMsg('')
+
+        try {
+            let targetId = selectedTargetNovelId
+            if (targetId === '__new__') {
+                const defaultTitle = file ? file.name.replace(/\.zip$/i, '').replace(/[-_]codex$/i, '').replace(/[-_]/g, ' ') : 'Codex Project'
+                targetId = await LibraryService.createStandaloneNovel(defaultTitle || 'Imported Codex')
+            }
+
+            const result = await CodexImportService.importCodexPackage(codexPackage, {
+                targetNovelId: targetId,
+                overwriteExisting: overwriteCodexExisting
+            })
+
+            onClose()
+            resetState()
+
+            await confirmAlert({
+                title: 'Codex Import Successful',
+                message: `Successfully imported ${result.importedCount + result.updatedCount} codex entries (${result.importedCount} new, ${result.updatedCount} updated), ${result.relationshipsCreated} relationships, and ${result.categoriesImported} category definitions.`
+            })
+
+            if (onProjectImported) {
+                onProjectImported(targetId)
+            }
+        } catch (err: any) {
+            setErrorMsg(err.message || 'Failed to import Codex.')
+        } finally {
+            setIsExecuting(false)
+            setProgressStatus('')
+        }
+    }
+
     return (
         <Dialog isOpen={isOpen} onClose={onClose} title="Import Project or Backup" width="600px">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                    Select or drop an AnansiWriter project archive (<code>.zip</code> / <code>.storyproject</code>), an AnansiWriter full system backup (<code>.json</code>), or a NovelCrafter export archive.
+                    Select or drop an AnansiWriter project archive (<code>.storyproject</code> / <code>.zip</code>), an AnansiWriter codex backup (<code>_codex.zip</code>), an AnansiWriter full system backup (<code>.json</code>), or a NovelCrafter export archive.
                 </p>
 
                 {/* Dropzone */}
@@ -335,7 +416,7 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
                         {file ? file.name : 'Click or drag file here to import'}
                     </strong>
                     <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                        Supported formats: .storyproject, .zip (AnansiWriter / NovelCrafter), .json (Anansi Full Backup)
+                        Supported formats: .storyproject, .zip (AnansiWriter Project or Codex / NovelCrafter), .json (Anansi Full Backup)
                     </span>
                 </div>
 
@@ -417,6 +498,69 @@ export function ImportProjectModal({ isOpen, onClose, onProjectImported, onSyste
                                 disabled={isExecuting || (isEncrypted && !password)}
                             >
                                 {isExecuting ? 'Importing...' : 'Import Project'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Detected Details: AnansiWriter Codex Archive */}
+                {detectedType === 'anansi-codex' && codexPackage && (
+                    <div style={{ padding: '1rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-accent)', fontWeight: 600, fontSize: '0.9rem' }}>
+                            <BookOpen size={18} /> AnansiWriter Codex Archive (.zip)
+                        </div>
+
+                        <div style={{ fontSize: '0.85rem', lineHeight: 1.6 }}>
+                            <div><strong>Codex Entries:</strong> {codexPackage.entries.length} entries found</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.35rem' }}>
+                                {Object.entries(codexPackage.entryCountsByType).map(([type, count]) => (
+                                    <span key={type} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', padding: '0.15rem 0.5rem', borderRadius: '12px', fontSize: '0.75rem' }}>
+                                        {type}: <strong>{count}</strong>
+                                    </span>
+                                ))}
+                            </div>
+
+                            {((codexPackage.categories && codexPackage.categories.length > 0) || (codexPackage.relationshipTypes && codexPackage.relationshipTypes.length > 0)) && (
+                                <div style={{ marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                                    Includes {codexPackage.categories?.length || 0} category definitions and {codexPackage.relationshipTypes?.length || 0} relationship types.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Target Novel Selector */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Destination Project</label>
+                            <select
+                                value={selectedTargetNovelId}
+                                onChange={e => setSelectedTargetNovelId(e.target.value)}
+                                style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)', fontSize: '0.85rem' }}
+                            >
+                                {novelsList.map(n => (
+                                    <option key={n.id} value={n.id}>{n.title}</option>
+                                ))}
+                                <option value="__new__">+ Create New Standalone Novel for Codex</option>
+                            </select>
+                        </div>
+
+                        {/* Overwrite or Merge */}
+                        <div style={{ padding: '0.6rem', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                                <input type="radio" checked={!overwriteCodexExisting} onChange={() => setOverwriteCodexExisting(false)} />
+                                <span><strong>Add as New / Merge</strong> (adds new entries, preserves existing content)</span>
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                                <input type="radio" checked={overwriteCodexExisting} onChange={() => setOverwriteCodexExisting(true)} />
+                                <span><strong>Update Matching Entries</strong> (overwrites entries with the same name)</span>
+                            </label>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                            <button
+                                className="btn primary"
+                                onClick={handleImportCodex}
+                                disabled={isExecuting || !selectedTargetNovelId}
+                            >
+                                {isExecuting ? 'Importing Codex...' : 'Import Codex Entries'}
                             </button>
                         </div>
                     </div>
